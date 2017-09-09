@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -216,6 +217,7 @@ namespace MapMagic
 			[System.NonSerialized] public GUIStyle boldLabelStyle = null;
 			[System.NonSerialized] public GUIStyle foldoutStyle = null;
 			[System.NonSerialized] public GUIStyle fieldStyle = null;
+			[System.NonSerialized] public GUIStyle dragFieldStyle = null;
 			[System.NonSerialized] public GUIStyle buttonStyle = null;
 			[System.NonSerialized] public GUIStyle enumZoomStyle = null;
 			[System.NonSerialized] public GUIStyle urlStyle = null;
@@ -232,12 +234,21 @@ namespace MapMagic
 					boldLabelStyle = new GUIStyle(UnityEditor.EditorStyles.label); boldLabelStyle.fontStyle = FontStyle.Bold; boldLabelStyle.focused.textColor = boldLabelStyle.active.textColor = boldLabelStyle.normal.textColor;
 					urlStyle = new GUIStyle(UnityEditor.EditorStyles.label); urlStyle.normal.textColor = new Color(0.3f, 0.5f, 1f); 
 					foldoutStyle = new GUIStyle(UnityEditor.EditorStyles.foldout);  foldoutStyle.fontStyle = FontStyle.Bold;
-					fieldStyle = new GUIStyle(UnityEditor.EditorStyles.numberField);
+					
 					buttonStyle = new GUIStyle("Button"); 
 					enumZoomStyle = new GUIStyle(UnityEditor.EditorStyles.miniButton); enumZoomStyle.alignment = TextAnchor.MiddleLeft;
 					toolbarStyle = new GUIStyle(UnityEditor.EditorStyles.toolbar);
 					toolbarButtonStyle = new GUIStyle(UnityEditor.EditorStyles.toolbarButton);  
 					helpBoxStyle = new GUIStyle(UnityEditor.EditorStyles.helpBox);  
+				}
+
+				if (fieldStyle == null)
+				{
+					fieldStyle = new GUIStyle(UnityEditor.EditorStyles.numberField);
+
+					//20 skin
+					//fieldStyle.normal.background = GetIcon("DPLayout_Field"); //Resources.Load("MapMagic_Window") as Texture2D;
+					//fieldStyle.border = new RectOffset(4,4,4,4);
 				}
 
 				int fontSize = Mathf.RoundToInt(this.fontSize * zoom);
@@ -849,6 +860,7 @@ namespace MapMagic
 				FontStyle fontStyle = FontStyle.Normal,
 				TextAnchor textAnchor = TextAnchor.UpperLeft,
 				bool prefix = false,
+				string icon = null,
 				string tooltip=null )
 			{
 				//if no rect specified - taking all of the next line
@@ -869,6 +881,9 @@ namespace MapMagic
 				if (style.alignment != textAnchor) labelStyle.alignment = textAnchor;
 				if (style.fontStyle != fontStyle) labelStyle.fontStyle = fontStyle;
 				
+				//icon
+				if (icon!=null) Icon(icon, new Rect(rect.x+4, rect.y, rect.width-8, rect.height), horizontalAlign:IconAligment.min, verticalAlign:IconAligment.center);
+
 				//gui content
 				GUIContent content = new GUIContent(label, tooltip);
 
@@ -1113,16 +1128,42 @@ namespace MapMagic
 			}
 			#endif
 
-			public void Spline (Vector2 pos1, Vector2 pos2, Color color=new Color(), bool invert=false)
+			//static Vector3[] splinePoints = new Vector3[100];
+			static Texture2D splineTex = null;
+			public void Spline (Vector2 pos1, Vector2 pos2, Color color=new Color(), int steps=10)
 			{
 				#if UNITY_EDITOR
 				pos1 = ToDisplay(pos1); pos2 = ToDisplay(pos2);
 				if (color.a < 0.001f) color = Color.black;
-				
+
 				float distance = (pos2-pos1).magnitude;
 
-				if (invert) UnityEditor.Handles.DrawBezier(pos2, pos1, new Vector2(pos2.x + distance/3, pos2.y), new Vector2(pos1.x-distance/3, pos1.y), color, null, 3f*zoom+2f);
-				else UnityEditor.Handles.DrawBezier(pos1, pos2, new Vector2(pos1.x + distance/3, pos1.y), new Vector2(pos2.x-distance/3, pos2.y), color, null, 3f*zoom+2f);
+				//preparing texture
+				if (splineTex == null) splineTex = Resources.Load("DPLayout_SplineTex") as Texture2D;
+
+				//old skin
+				UnityEditor.Handles.DrawBezier(pos1, pos2, new Vector2(pos1.x + distance/3, pos1.y), new Vector2(pos2.x-distance/3, pos2.y), color, null, 3f*zoom+2f);
+
+				//20 skin
+				//UnityEditor.Handles.DrawBezier(pos1, pos2, new Vector2(pos1.x + distance/3, pos1.y), new Vector2(pos2.x-distance/3, pos2.y), color, splineTex, 4f*zoom+2f);
+
+
+				
+				/*//manual spline
+				steps = ((steps-1)/10 + 1) * 10;  //steps is always multiples of 10
+
+				Vector2 tan1 = new Vector2(pos1.x + distance/3, pos1.y);
+				Vector2 tan2 = new Vector2(pos2.x-distance/3, pos2.y);
+
+				for (int i=0; i<steps; i++)
+				{
+					float p = 1f*i/steps;
+					float ip = 1f-p;
+					splinePoints[i] = ip*ip*ip*pos1 + 3*p*ip*ip*tan1 + 3*p*p*ip*tan2 + p*p*p*pos2;
+				}
+				UnityEditor.Handles.DrawAAPolyLine(splineTex, 4f, steps, splineTex);
+				*/
+
 				#endif
 			}
 
@@ -1387,384 +1428,174 @@ namespace MapMagic
 
 		#region Layered
 
-			public interface ILayered
-			{
-				int selected { get; set; }
-				
-				int collapsedHeight { get; set; }
-				int extendedHeight {get; set; }
-
-				ILayer[] layers { get; set; }
-
-				//void Add (int num);
-				//void Remove (int num);
-				//void Switch (int n1, int n2);
-
-				ILayer def { get; }
-			}
-
-			public interface ILayer
-			{
-				bool pinned { get; }
-				void OnCollapsedGUI (Layout layout);
-				void OnExtendedGUI (Layout layout); 
-				void OnAdd (int n);
-				void OnRemove (int n); 
-				void OnSwitch (int o, int n);
-				int guiHeight { get; set; }
-			}
-
-			public void DrawArrayAdd<T> (ref T[] layers, ref int selected, Rect rect, System.Action<int,object> onAdded=null, T def = default(T), object caller=null, GUIStyle style=null)
+			public void DrawArrayAdd<T> (ref T[] layers, ref int selected, Rect rect, bool reverse=false, Func<T> createElement=null, Action<int> onAdded=null, GUIStyle style=null)  //createElement is called to return element before it was added. onAdded called after the element has been added.
 			{
 				if (Button(rect:rect, tooltip:"Add new array element", style:style)) 
 				{ 
 					if (OnBeforeChange != null) OnBeforeChange();
 					if (selected >= 0)
 					{
-						layers = ArrayTools.Add(layers, selected, element:def);
-						selected++;
-						if (onAdded != null) onAdded(selected,caller);
+						layers = ArrayTools.Insert(layers, selected + (reverse?1 : 0), createElement:createElement);
+						if (reverse) selected++;
+						if (onAdded != null) onAdded(selected);
 						selected = Mathf.Clamp(selected, 0, layers.Length-1);
 					}
-					else
+					else //if nothing selected adding to the end
 					{
-						layers = ArrayTools.Add(layers, layers.Length-1, element:def);
-						if (onAdded != null) onAdded(layers.Length-1,caller);
+						layers = ArrayTools.Add(layers, createElement:createElement);
+						if (onAdded != null) onAdded(layers.Length-1);
 					}
 					change = true; lastChange = true;
+
+					#if UNITY_EDITOR
+					UnityEditor.EditorGUI.FocusTextInControl("");
+					#endif
 				}
 				Icon("DPLayout_Add", rect, IconAligment.center, IconAligment.center);
 			}
 
-			public void DrawArrayRemove<T> (ref T[] layers, ref int selected, Rect rect, int min=0, int max=-1, System.Action<int,object> onBeforeRemove=null, System.Action<int,object> onRemoved=null, object caller=null, GUIStyle style=null) //where T : ILayer
+			public void DrawArrayRemove<T> (ref T[] layers, ref int selected, Rect rect, bool reverse=false, System.Action<int> onBeforeRemove=null, System.Action<int> onRemoved=null, GUIStyle style=null) //where T : ILayer
 			{
-				if (max<0) max = layers.Length;
 				if (Button(rect:rect, tooltip:"Remove element", style:style) &&
-					selected < max && selected >= min)
+					selected < layers.Length && selected >= 0)
 				{
 					if (OnBeforeChange != null) OnBeforeChange();
-					if (onBeforeRemove != null) onBeforeRemove(selected,caller);
+					if (onBeforeRemove != null) onBeforeRemove(selected);
 					layers = ArrayTools.RemoveAt(layers, selected);
-					if (onRemoved != null) onRemoved(selected,caller);
-					selected--; 
-					selected = Mathf.Max(selected,0); 
+					if (onRemoved != null) onRemoved(selected);
+					if (reverse) selected--; 
+					selected = Mathf.Clamp(selected,0,layers.Length-1);
 					change = true; lastChange = true;
+
+					#if UNITY_EDITOR
+					UnityEditor.EditorGUI.FocusTextInControl("");
+					#endif
 				}
 				Icon("DPLayout_Remove", lastRect, IconAligment.center, IconAligment.center);
 			}
 
-			public void DrawArrayUp<T> (ref T[] layers, ref int selected, Rect rect, int min=0, int max=-1, bool reverseOrder=true, System.Action<int,int,object> onSwitch=null, object caller=null, GUIStyle style=null) //where T : ILayer
+			public void DrawArrayDown<T> (ref T[] layers, ref int selected, Rect rect, bool dispUp=false, System.Action<int,int> onSwitch=null, GUIStyle style=null) //where T : ILayer
 			{
-				if (max<0) max = layers.Length;
-				if (Button(rect:rect, tooltip:"Move selected " + (reverseOrder? "up" : "down"), style:style) && 
-					selected < max-1 && selected >= min) 
+				if (Button(rect:rect, tooltip:"Move selected " + (dispUp? "up" : "down"), style:style) && 
+					selected < layers.Length-1 && selected >= 0) 
 				{ 
 					if (OnBeforeChange != null) OnBeforeChange();
 					ArrayTools.Switch(layers, selected, selected+1);
 					selected++; 
-					if (onSwitch != null) onSwitch(selected-1, selected, caller);
+					if (onSwitch != null) onSwitch(selected-1, selected);
 					change = true; lastChange = true;
+
+					#if UNITY_EDITOR
+					UnityEditor.EditorGUI.FocusTextInControl("");
+					#endif
 				}
-				Icon(reverseOrder? "DPLayout_Up" : "DPLayout_Down", lastRect, IconAligment.center, IconAligment.center);
+				Icon(dispUp? "DPLayout_Up" : "DPLayout_Down", lastRect, IconAligment.center, IconAligment.center);
 			}
 
-			public void DrawArrayDown<T> (ref T[] layers, ref int selected, Rect rect, int min=0, int max=-1, bool reverseOrder=true, System.Action<int,int,object> onSwitch=null, object caller=null, GUIStyle style=null) //where T : ILayer
+			public void DrawArrayUp<T> (ref T[] layers, ref int selected, Rect rect, bool dispDown=false, System.Action<int,int> onSwitch=null, GUIStyle style=null) //where T : ILayer
 			{
-				if (max<0) max = layers.Length;
-				if (Button(rect:rect, tooltip:"Move selected " + (reverseOrder? "down" : "up"), style:style) && 
-					selected < max && selected > min)
+				if (Button(rect:rect, tooltip:"Move selected " + (dispDown? "down" : "up"), style:style) && 
+					selected < layers.Length && selected > 0)
 				{  
 					if (OnBeforeChange != null) OnBeforeChange();
 					ArrayTools.Switch(layers, selected, selected-1); 
 					selected--; 
-					if (onSwitch != null) onSwitch(selected+1, selected, caller);
+					if (onSwitch != null) onSwitch(selected+1, selected);
 					change = true; lastChange = true;
+
+					#if UNITY_EDITOR
+					UnityEditor.EditorGUI.FocusTextInControl("");
+					#endif
 				}
-				Icon(reverseOrder? "DPLayout_Down" : "DPLayout_Up", lastRect, IconAligment.center, IconAligment.center);
+				Icon(dispDown? "DPLayout_Down" : "DPLayout_Up", lastRect, IconAligment.center, IconAligment.center);
 			}
 
-			public bool DrawWithBackground (System.Action<Layout,bool,int> onGUI=null, bool active=false, int num=0, int extend=2, bool frameDisabled=true) //true if user clicked background
+
+			public Rect GetBackgroundRect (Action<Layout> onGUI, bool fullWidth=true)
 			{
-					bool mousePressed = Event.current.type==EventType.MouseUp; //saving mouse state before drawing layer - it will be needed to select layers
+				//saving margins (margins changed during ongui can cause increasing odffset)
+				int lMargn = margin;
+				int rMargin = rightMargin;
 
-					Par(5);
+				//rendering in markup mode
+				Rect startCursor = cursor;
+				bool prevMarkup = markup; 
+				markup = true;
+				onGUI(this); 
+				markup = prevMarkup;
+				Rect endCursor = cursor;
+				Par(0, margin:0);
 
-					//marking change
-					bool layoutChange = change;
-					change = false;
+				//calculating rect
+				Rect layerRect = new Rect(
+					startCursor.x, 
+					startCursor.y, 
+					endCursor.x-startCursor.x, 
+					endCursor.y-startCursor.y + endCursor.height); //-1 is initial padding
+				layerRect.y += field.y;
 
-					//first pass: markup
-					Rect startCursor = cursor;
-					bool prevMarkup = markup; 
-					markup = true;
-					if (onGUI != null) onGUI(this,active,num); 
-					markup = prevMarkup;
-					Rect endCursor = cursor;
-
-					//drawing background
-					float rectHeight = endCursor.y-startCursor.y + endCursor.height;
-					Rect layerRect = new Rect(startCursor.x, startCursor.y+startCursor.height, endCursor.x-startCursor.x, rectHeight); //-1 is initial padding
-					layerRect.y += field.y;
-					layerRect.width = field.width - margin - rightMargin;
-					layerRect = layerRect.Extend(extend*zoom);
-					if (active) layerRect = layerRect.Extend(2*zoom);
-					
-					#if UNITY_EDITOR
-					UnityEditor.EditorGUI.BeginDisabledGroup(!active);
-					if (active || frameDisabled) GUI.Box(ToDisplay(layerRect), "");
-					//UnityEditor.EditorGUI.HelpBox(ToDisplay(layerRect), "", UnityEditor.MessageType.None);
-					UnityEditor.EditorGUI.EndDisabledGroup();
-					#endif
-
-					//second pass: real
-					cursor = startCursor;
-					if (onGUI != null) onGUI(this,active,num); 
-
-					//selecting
-					#if UNITY_EDITOR
-					if (mousePressed && layerRect.Contains(ToInternal(Event.current.mousePosition)) && !active) 
-					{
-						UnityEditor.EditorGUI.FocusTextInControl(""); //stop writing on selection change
-						return true;
-					}
-					#endif
-
-					//returning last change (selection change not taken into account!)
-					lastChange = change;
-					change = layoutChange || lastChange;
-
-					Par(5);
-
-					return false;
-			}
-				 
-			public void DrawLayered<T> (T[] layers, ref int selected, int min=0, int max=-1, bool reverseOrder=true, System.Action<T,Layout,int,bool> onLayerGUI=null)
-				{ selected = DrawLayered<T> (layers, selected, min:min, max:max, reverseOrder:reverseOrder, onLayerGUI:onLayerGUI); }
-			public int DrawLayered<T> (T[] layers, int selected, int min=0, int max=-1, bool reverseOrder=true, System.Action<T,Layout,int,bool> onLayerGUI=null) //where T : ILayer
-			{
-				//Rect backgroundRect = new Rect(0,0,0,0);
-				//Rect backgroundStartCursor = new Rect(0,0,0,0);
-				int newSelected = selected;
-				if (max<0) max = layers.Length;
-
-
-				for (int i=min; i<max; i++)
+				//making rect full width
+				if (fullWidth)
 				{
-					int num = i;
-					if (reverseOrder) num = layers.Length-1 - i + min;
-
-					T layer = layers[num];
-
-					Par(5);
-
-					bool mousePressed = Event.current.type==EventType.MouseUp; //saving mouse state before drawing layer - it will be needed to select layers
-
-					//first pass: markup
-					Rect startCursor = cursor;
-					bool prevMarkup = markup; 
-					markup = true;
-					if (onLayerGUI != null) onLayerGUI(layer, this, num, num==selected); 
-					markup = prevMarkup;
-					Rect endCursor = cursor;
-
-					//drawing background
-					float rectHeight = endCursor.y-startCursor.y + endCursor.height;
-					Rect layerRect = new Rect(startCursor.x, startCursor.y+startCursor.height, endCursor.x-startCursor.x, rectHeight); //-1 is initial padding
-					layerRect.y += field.y;
-					layerRect.width = field.width - margin - rightMargin;
-					layerRect = layerRect.Extend(2*zoom);
-					if (num==selected) layerRect = layerRect.Extend(2*zoom);
-					
-					#if UNITY_EDITOR
-					UnityEditor.EditorGUI.BeginDisabledGroup(num!=selected);
-					GUI.Box(ToDisplay(layerRect), "");
-					//UnityEditor.EditorGUI.HelpBox(ToDisplay(layerRect), "", UnityEditor.MessageType.None);
-					UnityEditor.EditorGUI.EndDisabledGroup();
-					#endif
-
-					//second pass: real
-					cursor = startCursor;
-					onLayerGUI(layer, this, num, num==selected);
-
-					//selecting
-					if (num!=selected)
-					{
-						#if UNITY_EDITOR
-						if (mousePressed && layerRect.Contains(ToInternal(Event.current.mousePosition))) 
-						{
-							newSelected = num;
-							UnityEditor.EditorGUI.FocusTextInControl(""); //stop writing on selection change
-						}
-						#endif
-					}
-
-					Par(5);
-				
+					layerRect.x = field.x;// + margin;
+					layerRect.width = field.width;// - margin - rightMargin;
 				}
-					
-					/*layerRect.y += field.y;
-					//Label("", layerRect, helpbox: true);
 
-					if (num==selected) //saving background
-					{
-						backgroundRect = layerRect;
-						backgroundStartCursor = startCursor;
-					}
+				//returning cursor
+				cursor = startCursor;
 
-					
-				}
-				#endregion
+				//restoring margins
+				margin = lMargn;
+				rightMargin = rMargin;
 
-				/*#region Background and re-drawing selected layer above
-				if (backgroundRect.width>0.1f && backgroundRect.height>0.1f && selected>=0)
-				{
-					backgroundRect.width = field.width - margin - rightMargin;
-					backgroundRect = backgroundRect.Extend(2);
-					//UnityEditor.EditorGUI.BeginDisabledGroup(true);
-					GUI.Box(ToDisplay(backgroundRect), "");
-					//UnityEditor.EditorGUI.EndDisabledGroup();
-
-					Rect savedCursor = cursor;
-					cursor = backgroundStartCursor;
-					onLayerGUI(layers[selected], this, selected, true);
-					cursor = savedCursor;
-				}
-				#endregion*/
-
-				return newSelected;
+				return layerRect;
 			}
 
-			public void DrawLayered (ILayered splatOut, string label="", string tooltip="", bool reverseOrder=true, bool selectable=true, bool drawButtons=true)
+			public void DrawLayer (Action<Layout,bool,int> onGUI, ref int selectedNum, int num, int heightSpacing=3, int widthOffset=3)  //heightSpacing - vertical margins from contents expanding background. WidthOffset - horizontal offset from field borders shrinking background
 			{
-				ILayer[] layers = splatOut.layers;
+				Par(0); //starting from new line
 
-				//array buttons
-				if (drawButtons)
+				//selected num should not be changed unless layer is rendered twice
+				bool curIsSelected = selectedNum==num;
+
+				//calculating background rect
+				Rect backgroundRect = GetBackgroundRect( (Layout tmp) => { Par(heightSpacing,margin:0); onGUI(this, curIsSelected, num); Par(heightSpacing,margin:0); } );
+
+				//modifying background rect
+				backgroundRect.x += widthOffset;
+				backgroundRect.width -= widthOffset*2;
+
+				//selecting
+				#if UNITY_EDITOR
+				if (Event.current.type==EventType.MouseUp && backgroundRect.Contains(ToInternal(Event.current.mousePosition))) 
 				{
-					Par();
-					if (label.Length != 0) Label(label, Inset(0.4f), tooltip:tooltip);
-
-					if (Button(rect:Inset(0.15f), tooltip:"Add new array element")) 
-					{ 
-						if (OnBeforeChange != null) OnBeforeChange();
-						splatOut.layers = ArrayTools.Add(splatOut.layers, splatOut.selected, element:splatOut.def);
-						splatOut.selected++;
-						splatOut.selected = Mathf.Clamp(splatOut.selected, 0, splatOut.layers.Length-1);
-						splatOut.layers[splatOut.selected].OnAdd(splatOut.selected);
-						change = true; lastChange = true;
-					}
-					Icon("DPLayout_Add", lastRect, IconAligment.center, IconAligment.center);
-
-
-					if (Button(rect:Inset(0.15f), tooltip:"Remove element") &&
-						splatOut.selected < layers.Length &&
-						!layers[splatOut.selected].pinned)
-					{
-						if (OnBeforeChange != null) OnBeforeChange();
-						splatOut.layers[splatOut.selected].OnRemove(splatOut.selected);
-						splatOut.layers = ArrayTools.RemoveAt(splatOut.layers, splatOut.selected);
-						splatOut.selected--; 
-						splatOut.selected = Mathf.Max(splatOut.selected,0); 
-						change = true; lastChange = true;
-					}
-					Icon("DPLayout_Remove", lastRect, IconAligment.center, IconAligment.center);
-
-					if (Button(rect:Inset(0.15f), tooltip:"Move selected up") && 
-						splatOut.selected < layers.Length-1 &&
-						!layers[splatOut.selected].pinned && !layers[splatOut.selected+1].pinned) 
-					{ 
-						if (OnBeforeChange != null) OnBeforeChange();
-						ArrayTools.Switch(splatOut.layers, splatOut.selected, splatOut.selected+1);
-						splatOut.selected++; 
-						change = true; lastChange = true;
-					}
-					Icon("DPLayout_Up", lastRect, IconAligment.center, IconAligment.center);
-
-					if (Button(rect:Inset(0.15f), tooltip:"Move selected down") && 
-						splatOut.selected != 0 &&
-						!layers[splatOut.selected].pinned && !layers[splatOut.selected-1].pinned) 
-					{  
-						if (OnBeforeChange != null) OnBeforeChange();
-						ArrayTools.Switch(splatOut.layers, splatOut.selected, splatOut.selected-1); 
-						splatOut.selected--; 
-						change = true; lastChange = true;
-					}
-					Icon("DPLayout_Down", lastRect, IconAligment.center, IconAligment.center);
-					Par(2);
+					if (!curIsSelected) UnityEditor.EditorGUI.FocusTextInControl(""); //stop writing on selection change
+					selectedNum = num;
 				}
+				#endif
 
-				//drawing selection background
-				if (splatOut.selected<layers.Length && splatOut.selected>=0)
-				{
-					Rect savedRect = cursor;
+				//drawing background
+				#if UNITY_EDITOR
+				//GUI.Box(ToDisplay(backgroundRect), "");
+				//Texture2D backGround = GetIcon("DPLayout_LayerInactive");
+				//GUI.DrawTexture( ToDisplay(backgroundRect), 
+				if (curIsSelected) Element("DPLayout_LayerActive", backgroundRect, new RectOffset(4,4,4,4), new RectOffset(0,0,1,1));
+				else Element("DPLayout_LayerInactive", backgroundRect, new RectOffset(4,4,4,4), new RectOffset(0,0,1,1));
+				#endif
 
-					int selectedLine = splatOut.selected;
-					if (reverseOrder) selectedLine = layers.Length-1 - splatOut.selected; //num inversed from bottom
-					Par( Mathf.Max(1, (selectedLine*(splatOut.collapsedHeight+8)+3)) ); //par 0 will create line 18
-				
-					Par(splatOut.extendedHeight, margin:3, padding:0);
-					margin = 0; rightMargin = 7;
-					Rect backgroundRect = Inset(margin:3, rightMargin:3, padding:0); backgroundRect.y-=3; backgroundRect.height += 8;
-					GUI.Box(ToDisplay(backgroundRect), "");
+				//marking change
+				bool layoutChange = change;
+				change = false;
 
-					#if UNITY_EDITOR
-//					if (UnityEditor.EditorGUIUtility.isProSkin) DrawIcon(ToBase(backgroundRect), "MapMagic_LayerBackground_pro");
-					#endif
+				//drawing layer
+				Par(heightSpacing,margin:0);
+				onGUI(this, curIsSelected, num); //with old selected value
+				Par(heightSpacing,margin:0);
+				Par(0, margin:0);
 
-					cursor = savedRect;
-				}
-
-				//drawing layers
-				int newSelected = splatOut.selected;
-				margin += 4; rightMargin += 1;
-				for (int i=0; i<layers.Length; i++)
-				{
-					int num = i;
-					if (reverseOrder) num = layers.Length-1 - i;
-
-					ILayer layer = layers[num];
-					bool selected = num==splatOut.selected;
-
-					Par(3);
-
-					if (!selected) 
-					{
-						//selecting
-						#if UNITY_EDITOR
-						Rect selectRect = new Rect(margin, cursor.y, field.width-margin-rightMargin, 20);
-						selectRect.position += field.position;
-						selectRect = ToDisplay(selectRect);
-						if (Event.current.type == EventType.MouseDown && selectRect.Contains(Event.current.mousePosition) ) newSelected = num;
-						#endif
-
-						Rect beforeGui = cursor; 
-						layer.OnCollapsedGUI(this);
-						Rect afterGui = cursor;
-
-						splatOut.collapsedHeight = (int)((afterGui.y+afterGui.height)-(beforeGui.y+beforeGui.height)); 
-					}
-
-					else
-					{
-						Rect beforeGui = cursor; 
-						layer.OnExtendedGUI(this);
-						Rect afterGui = cursor;
-
-						splatOut.extendedHeight = (int)((afterGui.y+afterGui.height)-(beforeGui.y+beforeGui.height)); 
-					}
-
-					Par(5);
-				}
-
-				//changing selection
-				if (selectable && splatOut.selected != newSelected)
-				{
-					#if UNITY_EDITOR && !UNITY_EDITOR_LINUX
-					UnityEditor.EditorGUI.FocusTextInControl(""); //stop writing on selection change
-					#endif
-					splatOut.selected = newSelected;
-				}
-				if (!selectable) splatOut.selected = -1;
+				//returning last change (selection change not taken into account!)
+				lastChange = change;
+				change = layoutChange || lastChange;
 			}
 
 		#endregion

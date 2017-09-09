@@ -143,7 +143,11 @@ namespace MapMagic
 					worker.Stop();
 					results.Clear();
 					if (terrain != null) //it could be destroyed by undo
+					{
+						if (terrain.materialTemplate != null) GameObject.Destroy(terrain.materialTemplate); //removes custom shader textures as well
 						GameObject.DestroyImmediate(terrain.gameObject);
+						Resources.UnloadUnusedAssets();
+					}
 					
 					//clearing pools
 					Rect terrainRect = new Rect(coord.x*MapMagic.instance.terrainSize, coord.z*MapMagic.instance.terrainSize, MapMagic.instance.terrainSize, MapMagic.instance.terrainSize);

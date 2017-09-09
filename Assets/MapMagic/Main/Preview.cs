@@ -44,6 +44,10 @@ namespace MapMagic
 					//assigning saved material
 					if (originalMaterials.ContainsKey(chunk.terrain.transform))
 						chunk.terrain.materialTemplate = originalMaterials[chunk.terrain.transform];
+					
+					//rebuilding: bug #118
+					if (chunk.terrain.materialType==Terrain.MaterialType.Custom && !MapMagic.instance.assignCustomTerrainMaterial && chunk.terrain.materialTemplate==null) 
+						{ MapMagic.instance.ClearResults(); MapMagic.instance.Generate(force:true); } //rebuilding if terrain has no material saved 
 				}
 			}
 

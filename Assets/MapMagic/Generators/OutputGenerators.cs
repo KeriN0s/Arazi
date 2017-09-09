@@ -22,7 +22,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu(menu = "Output", name = "Height", disengageable = true, priority = -2)]
+	[GeneratorMenu(menu = "Output", name = "Height", disengageable = true, priority = -2, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Height")]
 	public class HeightOutput : OutputGenerator
 	{
 		public Input input = new Input(InoutType.Map);
@@ -332,11 +332,11 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu(menu = "Output", name = "Textures", disengageable = true, priority = -1)]
-	public class SplatOutput : OutputGenerator, Layout.ILayered
+	[GeneratorMenu(menu = "Output", name = "Textures", disengageable = true, priority = -1, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Textures")]
+	public class SplatOutput : OutputGenerator
 	{
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public Input input = new Input(InoutType.Map);
 			public Output output = new Output(InoutType.Map);
@@ -344,63 +344,53 @@ namespace MapMagic
 			public float opacity = 1;
 			public SplatPrototype splat = new SplatPrototype();
 
-			public bool pinned { get; set; }
-			public int guiHeight { get; set; }
-
-			public void OnCollapsedGUI(Layout layout)
-			{
-				layout.margin = 20; layout.rightMargin = 20; layout.fieldSize = 1f;
-				layout.Par(20);
-				if (!pinned) input.DrawIcon(layout);
-				layout.Label(name, rect: layout.Inset());
-				output.DrawIcon(layout);
-			}
-
-			public void OnExtendedGUI(Layout layout)
+			public void OnGUI (Layout layout, bool selected, int num) 
 			{
 				layout.margin = 20; layout.rightMargin = 20;
 				layout.Par(20);
 
-				if (!pinned) input.DrawIcon(layout);
-				layout.Field(ref name, rect: layout.Inset());
+				if (num != 0) input.DrawIcon(layout);
+				if (selected) layout.Field(ref name, rect: layout.Inset());
+				else layout.Label(name, rect: layout.Inset());
 				output.DrawIcon(layout);
 
-				layout.Par(2);
-				layout.Par(60); //not 65
-				splat.texture = layout.Field(splat.texture, rect: layout.Inset(60));
-				splat.normalMap = layout.Field(splat.normalMap, rect: layout.Inset(60));
-				layout.Par(2);
+				if (selected)
+				{
+					layout.Par(2);
+					layout.Par(60); //not 65
+					splat.texture = layout.Field(splat.texture, rect: layout.Inset(60));
+					splat.normalMap = layout.Field(splat.normalMap, rect: layout.Inset(60));
+					layout.Par(2);
 
-				layout.margin = 5; layout.rightMargin = 5; layout.fieldSize = 0.6f;
-				//layout.SmartField(ref downscale, "Downscale", min:1, max:8); downscale = Mathf.ClosestPowerOfTwo(downscale);
-				opacity = layout.Field(opacity, "Opacity", min: 0);
-				splat.tileSize = layout.Field(splat.tileSize, "Size");
-				splat.tileOffset = layout.Field(splat.tileOffset, "Offset");
-				splat.specular = layout.Field(splat.specular, "Specular");
-				splat.smoothness = layout.Field(splat.smoothness, "Smooth", max: 1);
-				splat.metallic = layout.Field(splat.metallic, "Metallic", max: 1);
+					layout.margin = 5; layout.rightMargin = 5; layout.fieldSize = 0.6f;
+					//layout.SmartField(ref downscale, "Downscale", min:1, max:8); downscale = Mathf.ClosestPowerOfTwo(downscale);
+					opacity = layout.Field(opacity, "Opacity", min: 0);
+					splat.tileSize = layout.Field(splat.tileSize, "Size");
+					splat.tileOffset = layout.Field(splat.tileOffset, "Offset");
+					splat.specular = layout.Field(splat.specular, "Specular");
+					splat.smoothness = layout.Field(splat.smoothness, "Smooth", max: 1);
+					splat.metallic = layout.Field(splat.metallic, "Metallic", max: 1);
+				}
 			}
-
-			public void OnAdd(int n) { splat = new SplatPrototype() { texture = defaultTex }; }
-			public void OnRemove(int n)
-			{
-				input.Link(null, null);
-				Input connectedInput = output.GetConnectedInput(MapMagic.instance.gens.list);
-				if (connectedInput != null) connectedInput.Link(null, null);
-			}
-			public void OnSwitch(int o, int n) { }
 		}
-		public Layer[] baseLayers = new Layer[] { new Layer() { pinned = true, name = "Background" } };
-		public virtual Layout.ILayer[] layers
+
+		//layer
+		public Layer[] baseLayers = new Layer[] { new Layer() { name = "Background" } };
+		public int selected;
+		
+		public void UnlinkBaseLayer (int p, int n)
 		{
-			get { return baseLayers; }
-			set { baseLayers = ArrayTools.Convert<Layer, Layout.ILayer>(value); }
+			if (baseLayers[0].input.link != null) 
+				baseLayers[0].input.Link(null, null);
+		}
+		public void UnlinkBaseLayer (int n) { UnlinkBaseLayer(0,0); }
+		
+		public void UnlinkLayer (int num)
+		{
+			baseLayers[num].input.Link(null,null); //unlink input
+			baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
 		}
 
-		public int selected { get; set; }
-		public int collapsedHeight { get; set; }
-		public int extendedHeight { get; set; }
-		public Layout.ILayer def { get { return new Layer() { splat = new SplatPrototype() { texture = defaultTex } }; } }
 
 		public static Texture2D _defaultTex;
 		public static Texture2D defaultTex { get { if (_defaultTex == null) _defaultTex = Extensions.ColorTexture(2, 2, new Color(0.75f, 0.75f, 0.75f, 0f)); return _defaultTex; } }
@@ -617,16 +607,28 @@ namespace MapMagic
 
 		public override void OnGUI(GeneratorsAsset gens)
 		{
-			layout.DrawLayered(this, "Layers:");
+			//Layer buttons
+			layout.Par();
+			layout.Label("Layers:", layout.Inset(0.4f));
+
+			layout.DrawArrayAdd(ref baseLayers, ref selected, rect:layout.Inset(0.15f), reverse:true, createElement:() => new Layer(), onAdded:UnlinkBaseLayer );
+			layout.DrawArrayRemove(ref baseLayers, ref selected, rect:layout.Inset(0.15f), reverse:true, onBeforeRemove:UnlinkLayer, onRemoved:UnlinkBaseLayer);
+			layout.DrawArrayDown(ref baseLayers, ref selected, rect:layout.Inset(0.15f), dispUp:true, onSwitch:UnlinkBaseLayer);
+			layout.DrawArrayUp(ref baseLayers, ref selected, rect:layout.Inset(0.15f), dispDown:true, onSwitch:UnlinkBaseLayer);
+
+			//layers
+			layout.Par(3);
+			for (int num=baseLayers.Length-1; num>=0; num--)
+				layout.DrawLayer(baseLayers[num].OnGUI, ref selected, num);
 		}
 	}
 
 	[System.Serializable]
-	[GeneratorMenu(menu = "Output", name = "Objects", disengageable = true)]
-	public class ObjectOutput : OutputGenerator, Layout.ILayered
+	[GeneratorMenu(menu = "Output", name = "Objects", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Objects")]
+	public class ObjectOutput : OutputGenerator
 	{
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public Input input = new Input(InoutType.Objects);
 
@@ -651,9 +653,6 @@ namespace MapMagic
 			//public Vector2 scaleChildren;
 			//public float removeChildren = 0;
 
-			public bool pinned { get; set; }
-			public int guiHeight { get; set; }
-
 			public void OnCollapsedGUI(Layout layout)
 			{
 				layout.margin = 20; layout.rightMargin = 5; layout.fieldSize = 1f;
@@ -662,7 +661,7 @@ namespace MapMagic
 				layout.Field(ref prefab, rect: layout.Inset());
 			}
 
-			public void OnExtendedGUI(Layout layout)
+			public void OnGUI (Layout layout, bool selected, int num) 
 			{
 				layout.margin = 20; layout.rightMargin = 5;
 				layout.Par(20);
@@ -670,42 +669,40 @@ namespace MapMagic
 				input.DrawIcon(layout);
 				layout.Field(ref prefab, rect: layout.Inset());
 
-				layout.Toggle(ref relativeHeight, "Relative Height");
-				layout.Toggle(ref rotate, "Rotate");
-				layout.Toggle(ref takeTerrainNormal, "Incline by Terrain");
-				layout.Par(); layout.Toggle(ref scale, "Scale", rect: layout.Inset(60));
-				layout.disabled = !scale;
-				layout.Toggle(ref scaleY, rect: layout.Inset(18)); layout.Label("Y only", rect: layout.Inset(45)); //if (layout.lastChange) scaleU = false;
-				layout.disabled = false;
-
-				//layout.Par(); layout.Field(ref processChildren, width:20); layout.Label("Process Children"); 
-				//if (processChildren)
-				//{
-				//	layout.margin += 10;
-				//	layout.ComplexField(ref floorChildren, "Floor");
-				//	layout.SmartField(ref rotateChildren, "Rotate", min:-360, max:360);
-				//	layout.SmartField(ref scaleChildren, "Scale", min:-2, max:2);
-				//	layout.SmartField(ref removeChildren, "Delete", max:1);
-				//	layout.margin -= 10;
-				//	layout.Par(3);
-				//}
+				if (selected)
+				{
+					layout.Toggle(ref relativeHeight, "Relative Height");
+					layout.Toggle(ref rotate, "Rotate");
+					layout.Toggle(ref takeTerrainNormal, "Incline by Terrain");
+					layout.Par(); layout.Toggle(ref scale, "Scale", rect: layout.Inset(60));
+					layout.disabled = !scale;
+					layout.Toggle(ref scaleY, rect: layout.Inset(18)); layout.Label("Y only", rect: layout.Inset(45)); //if (layout.lastChange) scaleU = false;
+					layout.disabled = false;
+				}
 			}
 
-			public void OnAdd(int n) { }
-			public void OnRemove(int n) { input.Link(null, null); }
-			public void OnSwitch(int o, int n) { }
-		}
-		public Layer[] baseLayers = new Layer[0];
-		public Layout.ILayer[] layers
-		{
-			get { return baseLayers; }
-			set { baseLayers = ArrayTools.Convert<Layer, Layout.ILayer>(value); }
+			//public void OnAdd(int n) { }
+			//public void OnRemove(int n) { input.Link(null, null); }
+			//public void OnSwitch(int o, int n) { }
 		}
 
-		public int selected { get; set; }
-		public int collapsedHeight { get; set; }
-		public int extendedHeight { get; set; }
-		public Layout.ILayer def { get { return new Layer(); } }
+		//layer
+		public Layer[] baseLayers = new Layer[0];
+		public int selected;
+		
+		public void UnlinkBaseLayer (int p, int n)
+		{
+			if (baseLayers[0].input.link != null) 
+				baseLayers[0].input.Link(null, null);
+		}
+		public void UnlinkBaseLayer (int n) { UnlinkBaseLayer(0,0); }
+		
+		public void UnlinkLayer (int num)
+		{
+			baseLayers[num].input.Link(null,null); //unlink input
+			//baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
+		}
+
 
 		public enum BiomeBlendType { Sharp, AdditiveRandom, NormalizedRandom, Scale }
 		public static BiomeBlendType biomeBlendType = BiomeBlendType.AdditiveRandom;
@@ -971,20 +968,32 @@ namespace MapMagic
 				layout.Par(10);
 			}
 
-			layout.DrawLayered(this, "Layers:");
+			//layer buttons
+			layout.Par();
+			layout.Label("Layers:", layout.Inset(0.4f));
+
+			layout.DrawArrayAdd(ref baseLayers, ref selected, rect:layout.Inset(0.15f), createElement:() => new Layer() );
+			layout.DrawArrayRemove(ref baseLayers, ref selected, rect:layout.Inset(0.15f), onBeforeRemove:UnlinkLayer);
+			layout.DrawArrayUp(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+			layout.DrawArrayDown(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+
+			//layers
+			layout.Par(3);
+			for (int num=0; num<baseLayers.Length; num++)
+				layout.DrawLayer(baseLayers[num].OnGUI, ref selected, num);
 		}
 
 	}
 
 	[System.Serializable]
-	[GeneratorMenu(menu = "Output", name = "Trees", disengageable = true)]
-	public class TreesOutput : OutputGenerator, Layout.ILayered
+	[GeneratorMenu(menu = "Output", name = "Trees", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Trees")]
+	public class TreesOutput : OutputGenerator
 	{
 		public enum BiomeBlendType { Sharp, AdditiveRandom, NormalizedRandom, Scale }
 		public static BiomeBlendType biomeBlendType = BiomeBlendType.AdditiveRandom;
 
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public Input input = new Input(InoutType.Objects);
 			public Output output = new Output(InoutType.Objects);
@@ -997,9 +1006,6 @@ namespace MapMagic
 			public Color color = Color.white;
 			public float bendFactor;
 
-			public bool pinned { get; set; }
-			public int guiHeight { get; set; }
-
 			public void OnCollapsedGUI(Layout layout)
 			{
 				layout.margin = 20; layout.rightMargin = 5; layout.fieldSize = 1f;
@@ -1008,7 +1014,7 @@ namespace MapMagic
 				layout.Field(ref prefab, rect: layout.Inset());
 			}
 
-			public void OnExtendedGUI(Layout layout)
+			public void OnGUI (Layout layout, bool selected, int num) 
 			{
 				layout.margin = 20; layout.rightMargin = 5;
 				layout.Par(20);
@@ -1016,32 +1022,40 @@ namespace MapMagic
 				input.DrawIcon(layout);
 				layout.Field(ref prefab, rect: layout.Inset());
 
-				layout.Par(); layout.Toggle(ref relativeHeight, rect: layout.Inset(20)); layout.Label("Relative Height", rect: layout.Inset(100));
-				layout.Par(); layout.Toggle(ref rotate, rect: layout.Inset(20)); layout.Label("Rotate", rect: layout.Inset(45));
-				layout.Par(); layout.Toggle(ref widthScale, rect: layout.Inset(20)); layout.Label("Width Scale", rect: layout.Inset(100));
-				layout.Par(); layout.Toggle(ref heightScale, rect: layout.Inset(20)); layout.Label("Height Scale", rect: layout.Inset(100));
-				layout.fieldSize = 0.37f;
-				layout.Field(ref color, "Color");
-				layout.Field(ref bendFactor, "Bend Factor");
+				if (selected)
+				{
+					layout.Par(); layout.Toggle(ref relativeHeight, rect: layout.Inset(20)); layout.Label("Relative Height", rect: layout.Inset(100));
+					layout.Par(); layout.Toggle(ref rotate, rect: layout.Inset(20)); layout.Label("Rotate", rect: layout.Inset(45));
+					layout.Par(); layout.Toggle(ref widthScale, rect: layout.Inset(20)); layout.Label("Width Scale", rect: layout.Inset(100));
+					layout.Par(); layout.Toggle(ref heightScale, rect: layout.Inset(20)); layout.Label("Height Scale", rect: layout.Inset(100));
+					layout.fieldSize = 0.37f;
+					layout.Field(ref color, "Color");
+					layout.Field(ref bendFactor, "Bend Factor");
+				}
 			}
 
-			public void OnAdd(int n) { }
-			public void OnRemove(int n) { input.Link(null, null); }
-			public void OnSwitch(int o, int n) { }
+			//public void OnAdd(int n) { }
+			//public void OnRemove(int n) { input.Link(null, null); }
+			//public void OnSwitch(int o, int n) { }
 		}
+
+		//layers
 		public Layer[] baseLayers = new Layer[0];
-		public Layout.ILayer[] layers
+		public int selected;
+		
+		public void UnlinkBaseLayer (int p, int n)
 		{
-			get { return baseLayers; }
-			set { baseLayers = ArrayTools.Convert<Layer, Layout.ILayer>(value); }
+			if (baseLayers[0].input.link != null) 
+				baseLayers[0].input.Link(null, null);
+		}
+		public void UnlinkBaseLayer (int n) { UnlinkBaseLayer(0,0); }
+		
+		public void UnlinkLayer (int num)
+		{
+			baseLayers[num].input.Link(null,null); //unlink input
+			baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
 		}
 
-		public int selected { get; set; }
-		public int collapsedHeight { get; set; }
-		public int extendedHeight { get; set; }
-		public Layout.ILayer def { get { return new Layer(); } }
-
-		//public class TreesTuple { public TreeInstance[] instances; public TreePrototype[] prototypes; }
 
 		//generator
 		public override IEnumerable<Input> Inputs()
@@ -1316,20 +1330,32 @@ namespace MapMagic
 		public override void OnGUI(GeneratorsAsset gens)
 		{
 			layout.Field(ref biomeBlendType, "Biome Blend", fieldSize:0.47f); 
-
+			
+			//layer buttons
 			layout.Par(5);
-			layout.DrawLayered(this, "Layers:");
+			layout.Par();
+			layout.Label("Layers:", layout.Inset(0.4f));
+
+			layout.DrawArrayAdd(ref baseLayers, ref selected, rect:layout.Inset(0.15f), createElement:() => new Layer() );
+			layout.DrawArrayRemove(ref baseLayers, ref selected, rect:layout.Inset(0.15f), onBeforeRemove:UnlinkLayer);
+			layout.DrawArrayUp(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+			layout.DrawArrayDown(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+
+			//layers
+			layout.Par(3);
+			for (int num=0; num<baseLayers.Length; num++)
+				layout.DrawLayer(baseLayers[num].OnGUI, ref selected, num);
 		}
 
 	}
 
 
 	[System.Serializable]
-	[GeneratorMenu(menu = "Output", name = "Grass", disengageable = true)]
-	public class GrassOutput : OutputGenerator, Layout.ILayered
+	[GeneratorMenu(menu = "Output", name = "Grass", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Grass")]
+	public class GrassOutput : OutputGenerator
 	{
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public Input input = new Input(InoutType.Map);
 			public Output output = new Output(InoutType.Map);
@@ -1340,95 +1366,91 @@ namespace MapMagic
 			public enum GrassRenderMode { Grass, GrassBillboard, VertexLit, Object };
 			public GrassRenderMode renderMode;
 
-			public bool pinned { get; set; }
-			public int guiHeight { get; set; }
-
-			public void OnCollapsedGUI(Layout layout)
+			public void OnGUI (Layout layout, bool selected, int num) 
 			{
 				layout.margin = 20; layout.rightMargin = 20; layout.fieldSize = 1f;
 				layout.Par(20);
-				input.DrawIcon(layout);
-				layout.Label(name, rect: layout.Inset());
-				if (output == null) output = new Output(InoutType.Map); //backwards compatibility
-				output.DrawIcon(layout);
-			}
-
-			public void OnExtendedGUI(Layout layout)
-			{
-				layout.margin = 20; layout.rightMargin = 20;
-				layout.Par(20);
 
 				input.DrawIcon(layout);
-				layout.Field(ref name, rect: layout.Inset());
+				if (selected) layout.Field(ref name, rect: layout.Inset());
+				else layout.Label(name, rect: layout.Inset());
 				if (output == null) output = new Output(InoutType.Map); //backwards compatibility
 				output.DrawIcon(layout);
 
-				layout.margin = 5; layout.rightMargin = 10; layout.fieldSize = 0.6f;
-				layout.fieldSize = 0.65f;
-
-				//setting render mode
-				if (renderMode == GrassRenderMode.Grass && det.renderMode != DetailRenderMode.Grass) //loading outdated
+				if (selected)
 				{
-					if (det.renderMode == DetailRenderMode.GrassBillboard) renderMode = GrassRenderMode.GrassBillboard;
-					else renderMode = GrassRenderMode.VertexLit;
+					layout.margin = 5; layout.rightMargin = 10; layout.fieldSize = 0.6f;
+					layout.fieldSize = 0.65f;
+
+					//setting render mode
+					if (renderMode == GrassRenderMode.Grass && det.renderMode != DetailRenderMode.Grass) //loading outdated
+					{
+						if (det.renderMode == DetailRenderMode.GrassBillboard) renderMode = GrassRenderMode.GrassBillboard;
+						else renderMode = GrassRenderMode.VertexLit;
+					}
+
+					renderMode = layout.Field(renderMode, "Mode");
+
+					if (renderMode == GrassRenderMode.Object || renderMode == GrassRenderMode.VertexLit)
+					{
+						det.prototype = layout.Field(det.prototype, "Object");
+						det.prototypeTexture = null; //otherwise this texture will be included to build even if not displayed
+						det.usePrototypeMesh = true;
+					}
+					else
+					{
+						layout.Par(60); //not 65
+						layout.Inset((layout.field.width - 60) / 2);
+						det.prototypeTexture = layout.Field(det.prototypeTexture, rect: layout.Inset(60));
+						det.prototype = null; //otherwise this object will be included to build even if not displayed
+						det.usePrototypeMesh = false;
+						layout.Par(2);
+					}
+					switch (renderMode)
+					{
+						case GrassRenderMode.Grass: det.renderMode = DetailRenderMode.Grass; break;
+						case GrassRenderMode.GrassBillboard: det.renderMode = DetailRenderMode.GrassBillboard; break;
+						case GrassRenderMode.VertexLit: det.renderMode = DetailRenderMode.VertexLit; break;
+						case GrassRenderMode.Object: det.renderMode = DetailRenderMode.Grass; break;
+					}
+
+					density = layout.Field(density, "Density", max: 50);
+					//det.bendFactor = layout.Field(det.bendFactor, "Bend");
+					det.dryColor = layout.Field(det.dryColor, "Dry");
+					det.healthyColor = layout.Field(det.healthyColor, "Healthy");
+
+					Vector2 temp = new Vector2(det.minWidth, det.maxWidth);
+					layout.Field(ref temp, "Width", max: 10);
+					det.minWidth = temp.x; det.maxWidth = temp.y;
+
+					temp = new Vector2(det.minHeight, det.maxHeight);
+					layout.Field(ref temp, "Height", max: 10);
+					det.minHeight = temp.x; det.maxHeight = temp.y;
+
+					det.noiseSpread = layout.Field(det.noiseSpread, "Noise", max: 1);
 				}
-
-				renderMode = layout.Field(renderMode, "Mode");
-
-				if (renderMode == GrassRenderMode.Object || renderMode == GrassRenderMode.VertexLit)
-				{
-					det.prototype = layout.Field(det.prototype, "Object");
-					det.prototypeTexture = null; //otherwise this texture will be included to build even if not displayed
-					det.usePrototypeMesh = true;
-				}
-				else
-				{
-					layout.Par(60); //not 65
-					layout.Inset((layout.field.width - 60) / 2);
-					det.prototypeTexture = layout.Field(det.prototypeTexture, rect: layout.Inset(60));
-					det.prototype = null; //otherwise this object will be included to build even if not displayed
-					det.usePrototypeMesh = false;
-					layout.Par(2);
-				}
-				switch (renderMode)
-				{
-					case GrassRenderMode.Grass: det.renderMode = DetailRenderMode.Grass; break;
-					case GrassRenderMode.GrassBillboard: det.renderMode = DetailRenderMode.GrassBillboard; break;
-					case GrassRenderMode.VertexLit: det.renderMode = DetailRenderMode.VertexLit; break;
-					case GrassRenderMode.Object: det.renderMode = DetailRenderMode.Grass; break;
-				}
-
-				density = layout.Field(density, "Density", max: 50);
-				//det.bendFactor = layout.Field(det.bendFactor, "Bend");
-				det.dryColor = layout.Field(det.dryColor, "Dry");
-				det.healthyColor = layout.Field(det.healthyColor, "Healthy");
-
-				Vector2 temp = new Vector2(det.minWidth, det.maxWidth);
-				layout.Field(ref temp, "Width", max: 10);
-				det.minWidth = temp.x; det.maxWidth = temp.y;
-
-				temp = new Vector2(det.minHeight, det.maxHeight);
-				layout.Field(ref temp, "Height", max: 10);
-				det.minHeight = temp.x; det.maxHeight = temp.y;
-
-				det.noiseSpread = layout.Field(det.noiseSpread, "Noise", max: 1);
 			}
 
-			public void OnAdd(int n) { name = "Grass"; }
-			public void OnRemove(int n) { input.Link(null, null); }
-			public void OnSwitch(int o, int n) { }
+			//public void OnAdd(int n) { name = "Grass"; }
+			//public void OnRemove(int n) { input.Link(null, null); }
+			//public void OnSwitch(int o, int n) { }
 		}
 		public Layer[] baseLayers = new Layer[0];
-		public Layout.ILayer[] layers
+		public int selected;
+
+		public void UnlinkBaseLayer (int p, int n)
 		{
-			get { return baseLayers; }
-			set { baseLayers = ArrayTools.Convert<Layer, Layout.ILayer>(value); }
+			if (baseLayers[0].input.link != null) 
+				baseLayers[0].input.Link(null, null);
+		}
+		public void UnlinkBaseLayer (int n) { UnlinkBaseLayer(0,0); }
+		
+		public void UnlinkLayer (int num)
+		{
+			baseLayers[num].input.Link(null,null); //unlink input
+			baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
 		}
 
-		public int selected { get; set; }
-		public int collapsedHeight { get; set; }
-		public int extendedHeight { get; set; }
-		public Layout.ILayer def { get { return new Layer() { name = "Grass" }; } }
 
 		//params
 		public Input maskIn = new Input(Generator.InoutType.Map);
@@ -1682,8 +1704,21 @@ namespace MapMagic
 			layout.Field(ref patchResolution, "Patch Res", min:4, max:64, fieldSize:0.35f);
 			patchResolution = Mathf.ClosestPowerOfTwo(patchResolution);
 			layout.Field(ref obscureLayers, "Obscure Layers", fieldSize: 0.35f);
+			
+			//layer buttons
 			layout.Par(3);
-			layout.DrawLayered(this, "Layers:");
+			layout.Par();
+			layout.Label("Layers:", layout.Inset(0.4f));
+
+			layout.DrawArrayAdd(ref baseLayers, ref selected, rect:layout.Inset(0.15f), reverse:true, createElement:() => new Layer() );
+			layout.DrawArrayRemove(ref baseLayers, ref selected, rect:layout.Inset(0.15f), reverse:true, onBeforeRemove:UnlinkLayer);
+			layout.DrawArrayDown(ref baseLayers, ref selected, rect:layout.Inset(0.15f), dispUp:true);
+			layout.DrawArrayUp(ref baseLayers, ref selected, rect:layout.Inset(0.15f), dispDown:true);
+
+			//layers
+			layout.Par(3);
+			for (int num=baseLayers.Length-1; num>=0; num--)
+				layout.DrawLayer(baseLayers[num].OnGUI, ref selected, num);
 
 			layout.fieldSize = 0.4f; layout.margin = 10; layout.rightMargin = 10;
 			layout.Par(5);

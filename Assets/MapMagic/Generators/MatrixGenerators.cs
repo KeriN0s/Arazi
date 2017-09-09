@@ -58,7 +58,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Constant", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Constant", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/constant")]
 	public class ConstantGenerator : Generator
 	{
 		public Output output = new Output(InoutType.Map);
@@ -89,7 +89,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Noise", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Noise", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/noise")]
 	public class NoiseGenerator182 : Generator
 	{
 		public int seed = 12345;
@@ -173,7 +173,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Voronoi", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Voronoi", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/voronoi")]
 	public class VoronoiGenerator1 : Generator
 	{
 		public float intensity = 1f;
@@ -284,7 +284,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Simple Form", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Simple Form", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/simple_form")]
 	public class SimpleForm1 : Generator
 	{
 		public Output output = new Output(InoutType.Map);
@@ -375,7 +375,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Raw Input", disengageable = true, disabled = false)]
+	[GeneratorMenu (menu="Map", name ="Raw Input", disengageable = true, disabled = false, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/raw_input")]
 	public class RawInput1 : Generator
 	{
 		public Output output = new Output(InoutType.Map);
@@ -586,7 +586,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Texture Input", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Texture Input", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/texture_input")]
 	public class TextureInput : Generator
 	{
 		public Output output = new Output(InoutType.Map);
@@ -668,7 +668,7 @@ namespace MapMagic
 	
 	
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Intensity/Bias", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Intensity/Bias", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/intensity_bias")]
 	public class IntensityBiasGenerator : Generator
 	{
 		public float intensity = 1f;
@@ -731,7 +731,7 @@ namespace MapMagic
 
 	
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Invert", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Invert", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/invert")]
 	public class InvertGenerator : Generator
 	{
 		//yap, this one is from the tutorial
@@ -781,7 +781,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Curve", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Curve", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/curve")]
 	public class CurveGenerator : Generator
 	{
 		//public override Type guiType { get { return Generator.Type.curve; } }
@@ -841,7 +841,7 @@ namespace MapMagic
 
 			layout.margin = 86;
 			layout.cursor = savedCursor;
-			layout.Label("Min/Max:");
+			layout.Label("Range:");
 			//layout.Par(); layout.Label("Min:", rect:layout.Inset(0.999f)); layout.Label("Max:", rect:layout.Inset(1f));
 			layout.Field(ref min);
 			layout.Field(ref max);
@@ -850,7 +850,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Blend", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Blend", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/blend")]
 	public class BlendGenerator2 : Generator
 	{
 		public enum Algorithm {mix=0, add=1, subtract=2, multiply=3, divide=4, difference=5, min=6, max=7, overlay=8, hardLight=9, softLight=10} 
@@ -944,18 +944,18 @@ namespace MapMagic
 			output.SetObject(results, matrix);
 		}
 
-		public void OnLayerGUI (Layer layer, Layout layout, int num, bool selected) 
+		public void OnLayerGUI (Layout layout, bool selected, int num) 
 		{
 			layout.margin += 10; layout.rightMargin +=5;
 			layout.Par(20);
-			layer.input.DrawIcon(layout, "", mandatory:false);
+			layers[num].input.DrawIcon(layout, "", mandatory:false);
 			if (num==0) layout.Label("Base Layer", rect:layout.Inset());
 			else
 			{
-				layout.Field(ref layer.algorithm, rect:layout.Inset(0.5f), disabled:num==0);
+				layout.Field(ref layers[num].algorithm, rect:layout.Inset(0.5f), disabled:num==0);
 				layout.Inset(0.05f);
 				layout.Icon("MapMagic_Opacity", rect:layout.Inset(0.1f), horizontalAlign:Layout.IconAligment.center, verticalAlign:Layout.IconAligment.center);
-				layout.Field(ref layer.opacity, rect:layout.Inset(0.35f), disabled:num==0);
+				layout.Field(ref layers[num].opacity, rect:layout.Inset(0.35f), disabled:num==0);
 			}
 			layout.margin -= 10; layout.rightMargin -=5;
 		}
@@ -969,47 +969,39 @@ namespace MapMagic
 			//params
 			layout.Par(16);
 			layout.Label("Layers:", layout.Inset(0.4f));
-			layout.DrawArrayAdd(ref layers, ref guiSelected, layout.Inset(0.15f), def:new Layer());
-			layout.DrawArrayRemove(ref layers, ref guiSelected, layout.Inset(0.15f));
-			layout.DrawArrayUp(ref layers, ref guiSelected, layout.Inset(0.15f));
-			layout.DrawArrayDown(ref layers, ref guiSelected, layout.Inset(0.15f));
+			layout.DrawArrayAdd(ref layers, ref guiSelected, layout.Inset(0.15f), reverse:true, createElement:() => new Layer());
+			layout.DrawArrayRemove(ref layers, ref guiSelected, layout.Inset(0.15f), reverse:true);
+			layout.DrawArrayDown(ref layers, ref guiSelected, layout.Inset(0.15f), dispUp:true);
+			layout.DrawArrayUp(ref layers, ref guiSelected, layout.Inset(0.15f), dispDown:true);
 
+			//layers
 			layout.margin = 10; layout.rightMargin = 5;
 			layout.Par(5);
-			layout.DrawLayered(layers, ref guiSelected, min:0, max:layers.Length, reverseOrder:true, onLayerGUI:OnLayerGUI);
+			for (int num=layers.Length-1; num>=0; num--)
+				layout.DrawLayer(OnLayerGUI, ref guiSelected, num);
+
+			//layout.DrawLayered(layers, ref guiSelected, min:0, max:layers.Length, reverseOrder:true, onLayerGUI:OnLayerGUI);
 		}
 	}
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Normalize", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Normalize", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/normalize")]
 	public class NormalizeGenerator : Generator
 	{
 		public enum Algorithm { sum, layers };
 		public Algorithm algorithm;
 
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public Input input = new Input(InoutType.Map);
 			public Output output = new Output(InoutType.Map);
 			public float opacity = 1;
-
-			public bool pinned { get; set; }
-			public int guiHeight { get; set; }
-
-			//outdated
-			public void OnExtendedGUI (Layout layout) {}
-			public void OnCollapsedGUI (Layout layout) {}
-
-			public void OnAdd (int n) { }
-			public void OnRemove (int n) { }
-			public void OnSwitch (int o, int n) { }
 		}
+
 		public Layer[] baseLayers = new Layer[] { new Layer(){} };
-
 		public int guiSelected;
-
 
 		//generator
 		public override IEnumerable<Input> Inputs() 
@@ -1065,24 +1057,22 @@ namespace MapMagic
 			}
 		}
 
-		public void OnBeforeRemove (int num, object caller)
+		public void UnlinkLayer (int num)
 		{
-			Layer layer = baseLayers[num];
-			layer.input.Link(null,null); 
-			Input connectedInput = layer.output.GetConnectedInput(MapMagic.instance.gens.list);
-			if (connectedInput != null) connectedInput.Link(null, null);
+			baseLayers[num].input.Link(null,null); //unlink input
+			baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
 		}
 
-		public void OnLayerGUI (Layer layer, Layout layout, int num, bool selected) 
+		public void OnLayerGUI (Layout layout, bool selected, int num) 
 		{
 			layout.Par(20);
 			
-			layer.input.DrawIcon(layout);
+			baseLayers[num].input.DrawIcon(layout);
 			layout.Inset(0.1f);
 			layout.Icon("MapMagic_Opacity", rect:layout.Inset(0.1f), horizontalAlign:Layout.IconAligment.center, verticalAlign:Layout.IconAligment.center);
-			layout.Field(ref layer.opacity, rect:layout.Inset(0.7f));
+			layout.Field(ref baseLayers[num].opacity, rect:layout.Inset(0.7f));
 			layout.Inset(0.1f);
-			layer.output.DrawIcon(layout);
+			baseLayers[num].output.DrawIcon(layout);
 		}
 
 		public override void OnGUI (GeneratorsAsset gens) 
@@ -1092,20 +1082,22 @@ namespace MapMagic
 
 			layout.margin=5;
 			layout.Par(16);
-			layout.DrawArrayAdd(ref baseLayers, ref guiSelected, layout.Inset(0.15f), def:new Layer()); 
-			layout.DrawArrayRemove(ref baseLayers, ref guiSelected, layout.Inset(0.15f), onBeforeRemove:OnBeforeRemove);
+			layout.Label("Layers:", layout.Inset(0.4f));
+			layout.DrawArrayAdd(ref baseLayers, ref guiSelected, layout.Inset(0.15f), createElement:() => new Layer()); 
+			layout.DrawArrayRemove(ref baseLayers, ref guiSelected, layout.Inset(0.15f), onBeforeRemove:UnlinkLayer);
 			layout.DrawArrayUp(ref baseLayers, ref guiSelected, layout.Inset(0.15f));
 			layout.DrawArrayDown(ref baseLayers, ref guiSelected, layout.Inset(0.15f));
 			layout.Par(5);
 			
 			layout.margin = 10; layout.rightMargin = 10; layout.fieldSize = 1f;
-			layout.DrawLayered(baseLayers, ref guiSelected, onLayerGUI:OnLayerGUI);
+			for (int num=0; num<baseLayers.Length; num++)
+				layout.DrawLayer(OnLayerGUI, ref guiSelected, num);
 		}
 	}
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Blur", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Blur", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/blur")]
 	public class BlurGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Map);
@@ -1173,7 +1165,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Cavity", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Cavity", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/cavity")]
 	public class CavityGenerator1 : Generator
 	{
 		public Input input = new Input(InoutType.Map);
@@ -1261,7 +1253,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Slope", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Slope", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/slope")]
 	public class SlopeGenerator1 : Generator
 	{
 		public Input input = new Input(InoutType.Map);
@@ -1344,7 +1336,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Terrace", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Terrace", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/terrace")]
 	public class TerraceGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Map);
@@ -1444,7 +1436,7 @@ namespace MapMagic
 
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Erosion", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Erosion", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/erosion")]
 	public class ErosionGenerator : Generator
 	{
 		public Input heightIn = new Input(InoutType.Map);
@@ -1625,7 +1617,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Map", name ="Shore", disengageable = true)]
+	[GeneratorMenu (menu="Map", name ="Shore", disengageable = true, helpLink ="https://gitlab.com/denispahunov/mapmagic/wikis/map_generators/shore")]
 	public class ShoreGenerator : Generator
 	{
 		public Input heightIn = new Input(InoutType.Map);

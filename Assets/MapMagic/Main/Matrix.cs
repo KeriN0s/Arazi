@@ -64,6 +64,14 @@ namespace MapMagic
 				else this.array = new float[count];
 			}
 
+			public Matrix (Texture2D texture)
+			{
+				rect = new CoordRect(0,0, texture.width, texture.height);
+				count = texture.width*texture.height;
+				array = new float[count];
+				FromTexture(texture);
+			}
+
 			public override object Clone () { return Copy(null); } //separate fn for IClonable
 			public Matrix Copy (Matrix result=null)
 			{

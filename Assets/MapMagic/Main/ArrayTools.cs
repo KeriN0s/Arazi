@@ -51,37 +51,44 @@ namespace MapMagic
 				return RemoveAt<T>(array,num);
 			}
 
-			//TODO: Add should not use "after" param
-			static public void Add<T> (ref T[] array, int after, T element=default(T)) { array = Add(array, after, element:element); }
-			static public T[] Add<T> (T[] array, int after, T element=default(T))
+			static public void Add<T> (ref T[] array, Func<T> createElement=null) { array = Add(array, createElement:createElement); }
+			static public T[] Add<T> (T[] array, Func<T> createElement=null)
 			{
-				if (array==null || array.Length==0) { return new T[] {element}; }
-				if (after > array.Length || after < 0) after = array.Length;
-				
-				T[] newArray = new T[array.Length+1];
-				for (int i=0; i<newArray.Length; i++) 
-				{
-					if (i<=after) newArray[i] = array[i];
-					else if (i == after+1) newArray[i] = element;
-					else newArray[i] = array[i-1];
+				if (array==null || array.Length==0) 
+				{ 
+					if (createElement != null) return new T[] {createElement()};
+					else return new T[] {default(T)};
 				}
+
+				T[] newArray = new T[array.Length+1];
+				for (int i=0; i<array.Length; i++) 
+					newArray[i] = array[i];
+				
+				if (createElement != null) newArray[array.Length] = createElement();
+				else newArray[array.Length] = default(T);
+				
 				return newArray;
 			}
-			static public T[] Add<T> (T[] array, T element=default(T)) { return Add(array, array.Length-1, element); }
-			static public void Add<T> (ref T[] array, T element=default(T)) { array = Add(array, array.Length-1, element); }
 
-
-			static public void Insert<T> (ref T[] array, int pos, T element=default(T)) { array = Add(array, pos, element:element); }
-			static public T[] Insert<T> (T[] array, int pos, T element=default(T))
+			static public void Insert<T> (ref T[] array, int pos, Func<T> createElement=null) { array = Insert(array, pos, createElement:createElement); }
+			static public T[] Insert<T> (T[] array, int pos, Func<T> createElement=null)
 			{
-				if (array==null || array.Length==0) { return new T[] {element}; }
+				if (array==null || array.Length==0) 
+				{ 
+					if (createElement != null) return new T[] {createElement()};
+					else return new T[] {default(T)};
+				}
 				if (pos > array.Length || pos < 0) pos = array.Length;
 				
 				T[] newArray = new T[array.Length+1];
 				for (int i=0; i<newArray.Length; i++) 
 				{
 					if (i<pos) newArray[i] = array[i];
-					else if (i == pos) newArray[i] = element;
+					else if (i == pos) 
+					{
+						if (createElement != null) newArray[i] = createElement();
+						else newArray[i] = default(T);
+					}
 					else newArray[i] = array[i-1];
 				}
 				return newArray;
@@ -107,23 +114,24 @@ namespace MapMagic
 				return newArray;
 			}
 
-			static public void Resize<T> (ref T[] array, int newSize, T element=default(T)) { array = Resize(array, newSize, element); }
-			static public T[] Resize<T> (T[] array, int newSize, T element=default(T))
+			static public void Resize<T> (ref T[] array, int newSize, Func<int,T> createElementCallback=null) { array = Resize(array, newSize, createElementCallback); }
+			static public T[] Resize<T> (T[] array, int newSize, Func<int,T> createElementCallback=null)
 			{
-				//NOTE: element is not unique. On adding 2 items it will fill both with one instance
 				if (array.Length == newSize) return array;
-				else if (newSize > array.Length) 
-				{ 
-					array = Add(array, element); 
-					array = Resize(array,newSize); 
-					return array; 
-					}
-				else 
-				{ 
-					array = RemoveAt(array, array.Length-1); 
-					array = Resize(array,newSize); 
-					return array;
+
+				T[] newArray = new T[newSize];
+					
+				int min = newSize<array.Length? newSize : array.Length;
+				for (int i=0; i<min; i++)
+					newArray[i] = array[i];
+
+				if (newSize > array.Length && createElementCallback!=null)
+				{
+					for (int i=array.Length; i<newSize; i++)
+						newArray[i] = createElementCallback(i);
 				}
+
+				return newArray;
 			}
 
 			static public void Append<T> (ref T[] array, T[] additional) { array = Append(array, additional); }

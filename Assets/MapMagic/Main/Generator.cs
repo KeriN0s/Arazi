@@ -17,6 +17,8 @@ namespace MapMagic
 		public bool disengageable { get; set; }
 		public bool disabled { get; set; }
 		public int priority { get; set; }
+		public string helpLink { get; set; }
+		public Type updateType { get; set; }
 	}
 
 	[System.Serializable]
@@ -55,12 +57,18 @@ namespace MapMagic
 
 					switch (type)
 					{
+						//old skin
 						case InoutType.Map: return isProSkin? new Color(0.23f, 0.5f, 0.652f) : new Color(0.05f, 0.2f, 0.35f);
 						case InoutType.Objects: return isProSkin? new Color(0.15f, 0.6f, 0.15f) : new Color(0.1f, 0.4f, 0.1f);
+						
+						//20 skin
+						//case InoutType.Map: return isProSkin? new Color(0f, 0.55f, 0.8f) : new Color(0.0f, 0.325f, 0.5f);
+						//case InoutType.Objects: return isProSkin? new Color(0.1f, 0.75f, 0.0f) : new Color(0.07f, 0.45f, 0.0f);
+						
 						default: return Color.black; 
 					}
 				}}
-				public Vector2 guiConnectionPos {get{ return new Vector2(guiRect.xMin, guiRect.center.y); }}
+				public Vector2 guiConnectionPos {get{ return new Vector2(guiRect.xMin+1, guiRect.center.y); }}
 
 				public void DrawIcon (Layout layout, string label=null, bool mandatory=false, bool setRectOnly=false)
 				{ 
@@ -139,7 +147,7 @@ namespace MapMagic
 				
 				//gui
 				public Rect guiRect { get; set; }
-				public Vector2 guiConnectionPos {get{ return new Vector2(guiRect.xMax, guiRect.center.y); }}
+				public Vector2 guiConnectionPos {get{ return new Vector2(guiRect.xMax-1, guiRect.center.y); }}
 				
 				public void DrawIcon (Layout layout, string label=null, bool setRectOnly=false, bool debug=false) 
 				{ 
@@ -218,6 +226,18 @@ namespace MapMagic
 					if (obj == null) return null;
 					else return (T)obj;
 				}
+
+				public void UnlinkInActiveGens ()
+				{
+					//TODO20: each generator should have a link to gens
+
+					object activeGensBoxed = Extensions.CallStaticMethodFrom("Assembly-CSharp-Editor", "MapMagic.MapMagicWindow", "GetGens", null);
+					if (activeGensBoxed == null) return;
+					GeneratorsAsset activeGens = activeGensBoxed as GeneratorsAsset;  
+
+					Input connectedInput = GetConnectedInput(activeGens.list);
+					if (connectedInput != null) connectedInput.Link(null, null);
+				}
 			}
 		#endregion
 
@@ -277,10 +297,19 @@ namespace MapMagic
 
 			if (mapMagic!=null && debug && !mapMagic.IsGeneratorReady(this)) genName+="*";
 
-			Rect labelRect = layout.Inset(); labelRect.height = 25; labelRect.y -= (1f-layout.zoom)*6 + 2;
+			Rect labelRect = layout.Inset(layout.field.width-18-22); labelRect.height = 25; labelRect.y -= (1f-layout.zoom)*6 + 2;
 			layout.Label(genName, labelRect, fontStyle:FontStyle.Bold, fontSize:19-layout.zoom*8);
 
-			layout.Par(1);
+			//drawing help link
+			Rect helpRect = layout.Inset(22);
+			if (attribute != null && attribute.helpLink != null && attribute.helpLink.Length != 0)
+			{
+				layout.Label("", helpRect, url:attribute.helpLink, icon:"MapMagic_Help");
+				//if (layout.Button("", helpRect, icon:"MapMagic_Help")) Application.OpenURL(attribute.helpLink); 
+				//UnityEditor.EditorGUIUtility.AddCursorRect (layout.ToDisplay(helpRect), UnityEditor.MouseCursor.Link);
+			}
+
+			layout.Par(4);
 		}
 
 		public abstract void OnGUI (GeneratorsAsset gens);
@@ -360,7 +389,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="", name ="Portal", disengageable = true, priority = 1)]
+	[GeneratorMenu (menu="", name ="Portal", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/Portal", priority = 1)]
 	public class Portal : Generator
 	{
 		public Input input = new Input(InoutType.Map);

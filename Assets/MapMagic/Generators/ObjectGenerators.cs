@@ -8,8 +8,8 @@ using MapMagic;
 namespace MapMagic
 {
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Scatter", disengageable = true)]
-	public class ScatterGenerator1 : Generator
+	[GeneratorMenu (menu="Objects", name ="Scatter", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Scatter")]
+	public class ScatterGenerator184 : Generator
 	{
 		public Input probability = new Input(InoutType.Map);
 		public Output output = new Output(InoutType.Objects);
@@ -33,7 +33,7 @@ namespace MapMagic
 			//initializing random
 			InstanceRandom rnd = new InstanceRandom(seed + this.seed + terrainSize.Seed(rect));
 
-			float square = rect.size.x * rect.size.z;
+			float square = terrainSize.dimensions * terrainSize.dimensions; //rect.size.x * rect.size.z;
 			int count = (int)(square*(density/1000000)); //number of items per terrain
 			
 			if (algorithm==Algorithm.Random) RandomScatter(count, spatialHash, rnd, probMatrix, stop:stop);  
@@ -206,7 +206,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Adjust", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Adjust", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Adjust")]
 	public class AdjustGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Objects);
@@ -289,7 +289,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Clean Up", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Clean Up", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Clean_Up")]
 	public class CleanUpGenerator : Generator
 	{
 		public Input mask = new Input(InoutType.Map);
@@ -339,11 +339,11 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Split", disengageable = true)]
-	public class SplitGenerator : Generator, Layout.ILayered
+	[GeneratorMenu (menu="Objects", name ="Split", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Split")]
+	public class SplitGenerator : Generator
 	{
 		//layer
-		public class Layer : Layout.ILayer
+		public class Layer
 		{
 			public string name = "Object Layer";
 			public Output output = new Output(InoutType.Objects);
@@ -353,52 +353,35 @@ namespace MapMagic
 			public Vector2 scaleCondition = new Vector2(0,100);
 			public float chance = 1;
 
-			public bool pinned { get{return false;}}
-			public int guiHeight { get; set; }
-			
-			public void OnCollapsedGUI (Layout layout) 
-			{ 
-				layout.rightMargin = 20; layout.fieldSize = 1f;
-				
-				layout.Par(20); 
-				layout.Label(name, rect:layout.Inset()); 
-				output.DrawIcon(layout);
-			}
-			public void OnExtendedGUI (Layout layout) 
-			{ 
+			public void OnGUI (Layout layout, bool selected, int num) 
+			{
 				layout.margin = 7; layout.rightMargin = 20; layout.fieldSize = 1f;
 				
 				layout.Par(20); 
-				name = layout.Field(name, rect:layout.Inset()); 
+				if (selected) name = layout.Field(name, rect:layout.Inset()); 
+				else layout.Label(name, rect:layout.Inset());
 				output.DrawIcon(layout);
 
-				layout.margin = 5; layout.rightMargin = 5; layout.fieldSize = 0.6f;
-				layout.Field(ref heightCondition, "Height");
-				layout.Field(ref rotationCondition, "Rotation");
-				layout.Field(ref scaleCondition, "Scale");
-				layout.Field(ref chance, "Chance");
+				if (selected)
+				{
+					layout.margin = 5; layout.rightMargin = 5; layout.fieldSize = 0.6f;
+					layout.Field(ref heightCondition, "Height");
+					layout.Field(ref rotationCondition, "Rotation");
+					layout.Field(ref scaleCondition, "Scale");
+					layout.Field(ref chance, "Chance");
+				}
 			}
-
-			public void OnAdd (int n) {  }
-			public void OnRemove (int n) 
-			{ 
-				Input connectedInput = output.GetConnectedInput(MapMagic.instance.gens.list);
-				if (connectedInput != null) connectedInput.Link(null, null);
-			}
-			public void OnSwitch (int o, int n) { }
 		}
 
+		//layer
 		public Layer[] baseLayers = new Layer[0];
-		public Layout.ILayer[] layers 
-		{ 
-			get {return baseLayers;} 
-			set {baseLayers=ArrayTools.Convert<Layer,Layout.ILayer>(value);} 
-		}
+		public int selected;
 
-		public int selected { get; set; }
-		public int collapsedHeight { get; set; }
-		public int extendedHeight { get; set; }
-		public Layout.ILayer def {get{ return new Layer(); }}
+		public void UnlinkLayer (int num)
+		{
+			//baseLayers[num].input.Link(null,null); //unlink input
+			baseLayers[num].output.UnlinkInActiveGens(); //try to unlink output
+		}
 
 		//generator
 		public Input input = new Input(InoutType.Objects);
@@ -502,12 +485,28 @@ namespace MapMagic
 			layout.Label("Match Type", rect:layout.Inset(0.5f));
 			layout.Field(ref matchType, rect:layout.Inset(0.5f));
 
-			layout.DrawLayered(this, "Layers:");
+			//layers
+			//layout.DrawLayered(this, "Layers:");
+			layout.Par();
+			layout.Label("Layers:", layout.Inset(0.4f));
+
+			layout.DrawArrayAdd(ref baseLayers, ref selected, rect:layout.Inset(0.15f), createElement:() => new Layer());
+			layout.DrawArrayRemove(ref baseLayers, ref selected, rect:layout.Inset(0.15f), onBeforeRemove:UnlinkLayer);
+			layout.DrawArrayUp(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+			layout.DrawArrayDown(ref baseLayers, ref selected, rect:layout.Inset(0.15f));
+
+			layout.Par(2);
+			for (int i=0; i<baseLayers.Length; i++)
+				layout.DrawLayer(baseLayers[i].OnGUI, ref selected, i);
+
+			//layout.DrawLayered2(baseLayers, ref selected, baseLayers[0].OnGUI);
+			//for (int num=0; num<baseLayers.Length; num++)
+			//	if (layout.DrawWithBackground(baseLayers[num].OnGUI, num:num)) selected = num;
 		}
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Subtract", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Subtract", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Subtract")]
 	public class SubtractGenerator : Generator
 	{
 		public Input minuendIn = new Input(InoutType.Objects);
@@ -562,7 +561,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Rarefy", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Rarefy", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Rerefy")]
 	public class RarefyGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Objects);
@@ -617,7 +616,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Combine", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Combine", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Combine")]
 	public class CombineGenerator : Generator
 	{
 		public Input[] inputs = new Input[] { new Input(InoutType.Objects), new Input(InoutType.Objects) };
@@ -668,14 +667,14 @@ namespace MapMagic
 			{
 				if (inputsNum > inputs.Length) 
 					for (int i=0; i<inputsNum-inputs.Length; i++)
-						ArrayTools.Add(ref inputs, inputsNum, new Input(InoutType.Objects));
-				else ArrayTools.Resize(ref inputs, inputsNum);
+						ArrayTools.Add(ref inputs, createElement:() => new Input(InoutType.Objects));
+				else ArrayTools.Resize<Input>(ref inputs, inputsNum); //Unity 5.4 can't compile if <Input> is not specified
 			}
 		}
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Propagate", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Propagate", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Propagate")]
 	public class PropagateGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Objects);
@@ -747,8 +746,8 @@ namespace MapMagic
 	}
 	
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Stamp", disengageable = true)]
-	public class StampGenerator1 : Generator
+	[GeneratorMenu (menu="Objects", name ="Stamp", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Stamp")]
+	public class StampGenerator184 : Generator
 	{
 		public Input stampIn = new Input(InoutType.Map);
 		public Input canvasIn = new Input(InoutType.Map);
@@ -759,7 +758,7 @@ namespace MapMagic
 		public Output output = new Output(InoutType.Map);
 		public override IEnumerable<Output> Outputs() { yield return output; }
 
-		public BlendGenerator.Algorithm guiAlgorithm;
+		public BlendGenerator.Algorithm guiAlgorithm = BlendGenerator.Algorithm.max;
 		public float radius = 1;
 		public float sizeFactor = 1;
 		public int safeBorders = 0;
@@ -787,7 +786,7 @@ namespace MapMagic
 			{
 				//finding current radius
 				float curRadius = radius*(1-sizeFactor) + radius*obj.size*sizeFactor;
-				curRadius = curRadius * terrainSize.pixelSize; //transforming to map-space
+				curRadius = curRadius / terrainSize.pixelSize; //transforming to map-space
 
 				//stamp coordinates
 				//float scale = curRadius*2 / stamp.rect.size.x;
@@ -796,7 +795,7 @@ namespace MapMagic
 				Vector2 stampSize = new Vector2(curRadius*2, curRadius*2);
 
 				//calculating rects 
-				CoordRect stampRect = new CoordRect(stampMin.x, stampMin.y, stampSize.x, stampSize.y);
+				CoordRect stampRect = new CoordRect(stampMin.x, stampMin.y, stampSize.x+1, stampSize.y+1);
 				CoordRect intersection = CoordRect.Intersect(stampRect, dst.rect);
 				Coord min = intersection.Min; Coord max = intersection.Max; 
 
@@ -845,7 +844,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Blob", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Blob", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Blob")]
 	public class BlobGenerator : Generator
 	{
 		public Input objectsIn = new Input(InoutType.Objects);
@@ -959,7 +958,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Flatten", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Flatten", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Flatten")]
 	public class FlattenGenerator : Generator
 	{
 		public Input objectsIn = new Input(InoutType.Objects);
@@ -1042,7 +1041,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Forest", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Forest", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Forest")]
 	public class ForestGenerator1 : Generator
 	{
 		public Input seedlingsIn = new Input(InoutType.Objects);
@@ -1191,7 +1190,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Objects", name ="Slide", disengageable = true)]
+	[GeneratorMenu (menu="Objects", name ="Slide", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Slide")]
 	public class SlideGenerator : Generator
 	{
 		public Input input = new Input(InoutType.Objects);

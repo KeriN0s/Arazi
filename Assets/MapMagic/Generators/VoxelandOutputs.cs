@@ -8,7 +8,7 @@ using MapMagic;
 namespace MapMagic
 {
 	[System.Serializable]
-	[GeneratorMenu (menu="Output", name ="Voxeland", disengageable = true, priority = 10)]
+	[GeneratorMenu (menu="Output", name ="Voxeland", disengageable = true, priority = 10, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Voxeland")]
 	public class VoxelandOutput : OutputGenerator
 	{
 		public class Layer
@@ -28,7 +28,7 @@ namespace MapMagic
 		}
 		public Layer[] layers = new Layer[] { };
 		private int selected = -1;
-		public void OnAddLayer (int num, object obj) { layers[num] = new Layer(); } 
+		//public void OnAddLayer (int num, object obj) { layers[num] = new Layer(); } 
 
 		public Output areaOutput = new Output(InoutType.Voxel);
 		public Output heightOut = new Output(InoutType.Map);
@@ -261,19 +261,26 @@ namespace MapMagic
 			if (voxeland == null) voxeland = GameObject.FindObjectOfType<Voxeland5.Voxeland>();
 			
 			//gathering block names
-			if (voxeland != null) voxeland.landTypes.FillNames(ref blockNames);
+			if (voxeland != null) 
+			{
+				int namesCount = voxeland.landTypes.array.Length+2;
+				if (blockNames == null || blockNames.Length != namesCount) blockNames = new string[namesCount];
+				for (int i=0; i<voxeland.landTypes.array.Length; i++)
+					blockNames[i] = voxeland.landTypes.array[i].name;
+				blockNames[namesCount-1] = "Empty";
+			}
 
 			//drawing layers
 			layout.Par(1); layout.Label("Temp",rect:layout.Inset()); //needed to reset label bold style
 			layout.margin = 10; layout.rightMargin = 10;
 			for (int i=layers.Length-1; i>=0; i--)
-				if (layout.DrawWithBackground(OnLayerGUI, active:i==selected, num:i)) selected = i;
+				layout.DrawLayer(OnLayerGUI, ref selected, i);
 
 			layout.Par(3); layout.Par();
-			layout.DrawArrayAdd(ref layers, ref selected, layout.Inset(0.15f), onAdded:OnAddLayer);
-			layout.DrawArrayRemove(ref layers, ref selected, layout.Inset(0.15f));
-			layout.DrawArrayUp(ref layers, ref selected, layout.Inset(0.15f), reverseOrder:true);
-			layout.DrawArrayDown(ref layers, ref selected, layout.Inset(0.15f), reverseOrder:true);
+			layout.DrawArrayAdd(ref layers, ref selected, layout.Inset(0.15f), reverse:true, createElement:() => new Layer() );
+			layout.DrawArrayRemove(ref layers, ref selected, layout.Inset(0.15f), reverse:true);
+			layout.DrawArrayDown(ref layers, ref selected, layout.Inset(0.15f), dispUp:true);
+			layout.DrawArrayUp(ref layers, ref selected, layout.Inset(0.15f), dispDown:true);
 			
 			layout.Par(5);
 			
@@ -345,7 +352,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Output", name ="Voxeland Objects", disengageable = true, priority = 10)]
+	[GeneratorMenu (menu="Output", name ="Voxeland Objects", disengageable = true, priority = 10, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Voxeland%20Objects")]
 	public class VoxelandObjectsOutput : OutputGenerator
 	{
 		public class Layer
@@ -502,7 +509,7 @@ namespace MapMagic
 			layout.Par(1); layout.Label("Temp",rect:layout.Inset()); //needed to reset label bold style
 			layout.margin = 10; layout.rightMargin = 10;
 			for (int i=layers.Length-1; i>=0; i--)
-				if (layout.DrawWithBackground(OnLayerGUI, active:i==selected, num:i)) selected = i;
+				layout.DrawLayer(OnLayerGUI, ref selected, i);
 
 			#endif
 		}
@@ -535,7 +542,7 @@ namespace MapMagic
 	}
 
 	[System.Serializable]
-	[GeneratorMenu (menu="Output", name ="Voxeland Grass", disengageable = true, priority = 10)]
+	[GeneratorMenu (menu="Output", name ="Voxeland Grass", disengageable = true, priority = 10, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/output_generators/Voxeland%20Grass")]
 	public class VoxelandGrassOutput : OutputGenerator
 	{
 		public class Layer
@@ -669,7 +676,7 @@ namespace MapMagic
 			layout.Par(1); layout.Label("Temp",rect:layout.Inset()); //needed to reset label bold style
 			layout.margin = 10; layout.rightMargin = 10;
 			for (int i=layers.Length-1; i>=0; i--)
-				if (layout.DrawWithBackground(OnLayerGUI, active:i==selected, num:i)) selected = i;
+				layout.DrawLayer(OnLayerGUI, ref selected, i);
 
 			
 			#endif

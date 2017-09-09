@@ -546,6 +546,16 @@ namespace MapMagic
 		}
 
 
+		public static object CallStaticMethodFrom (string assembly, string type, string method, object[] parameters)
+		{
+			// editor assembly is Assembly-CSharp-Editor
+			// main is Assembly-CSharp
+
+			Assembly a = Assembly.Load(assembly);
+			Type t = a.GetType(type);
+			return t.GetMethod(method).Invoke(null, parameters);
+		}
+
 		public static void GetPropertiesFrom<T1,T2> (this T1 dst, T2 src) where T1:class where T2:class
 		{
 			PropertyInfo[] srcProps = src.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.GetProperty);
@@ -689,6 +699,21 @@ namespace MapMagic
 			foreach (PropertyInfo prop in type.UsableProperties(nonPublic:true)) prop.SetValue(copy, prop.GetValue(obj,null), null);
 
 			return copy;
+		}
+
+		public static void ReflectionCopyFrom<T> (this T dst, object src)
+		{
+			Type dstType = dst.GetType();
+			Type srcType = src.GetType();
+
+			foreach (FieldInfo dstField in dstType.UsableFields(nonPublic:true))
+			{
+				FieldInfo srcField = srcType.GetField(dstField.Name);
+				if (srcField != null && srcField.FieldType == dstField.FieldType) dstField.SetValue(dst, srcField.GetValue(src));
+			}
+
+
+			//foreach (PropertyInfo prop in type.UsableProperties(nonPublic:true)) prop.SetValue(copy, prop.GetValue(obj,null), null);
 		}
 
 

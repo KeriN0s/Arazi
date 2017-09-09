@@ -290,8 +290,8 @@ namespace MapMagic
 				float curAmount = 1;
 
 				//apply offset
-				x += (int)(offset.x);
-				z += (int)(offset.y);
+			//	x += (int)(offset.x);
+			//	z += (int)(offset.y);
 
 				//making x and z resolution independent
 				float rx = 1f*x / matrix.rect.size.x * 512;
@@ -1219,6 +1219,12 @@ namespace MapMagic
 		public Layer[] layers = new Layer[] { new Layer(), new Layer() };
 		public int guiSelected;
 
+		public void UnlinkLayer (int num)
+		{
+			layers[num].input.Link(null,null); //unlink input
+			//layers[num].output.UnlinkInActiveGens(); //try to unlink output
+		}
+
 		public Input maskInput = new Input(InoutType.Map);
 		public Output output = new Output(InoutType.Map);
 		public override IEnumerable<Input> Inputs() { for (int i=0; i<layers.Length; i++) yield return layers[i].input; yield return maskInput; }
@@ -1306,15 +1312,15 @@ namespace MapMagic
 			output.SetObject(results, matrix);
 		}
 
-		public void OnLayerGUI (Layer layer, Layout layout, int num, bool selected) 
+		public void OnLayerGUI (Layout layout, bool selected, int num) 
 		{
 			layout.margin += 10; layout.rightMargin +=5;
 			layout.Par(20);
-			layer.input.DrawIcon(layout, "", mandatory:false);
-			layout.Field(ref layer.algorithm, rect:layout.Inset(0.5f), disabled:num==0);
+			layers[num].input.DrawIcon(layout, "", mandatory:false);
+			layout.Field(ref layers[num].algorithm, rect:layout.Inset(0.5f), disabled:num==0);
 			layout.Inset(0.05f);
 			layout.Icon("MapMagic_Opacity", rect:layout.Inset(0.1f), horizontalAlign:Layout.IconAligment.center, verticalAlign:Layout.IconAligment.center);
-			layout.Field(ref layer.opacity, rect:layout.Inset(0.35f), disabled:num==0);
+			layout.Field(ref layers[num].opacity, rect:layout.Inset(0.35f), disabled:num==0);
 			layout.margin -= 10; layout.rightMargin -=5;
 		}
 
@@ -1327,14 +1333,15 @@ namespace MapMagic
 			//params
 			layout.Par(16);
 			layout.Label("Layers:", layout.Inset(0.4f));
-			layout.DrawArrayAdd(ref layers, ref guiSelected, layout.Inset(0.15f), def:new Layer());
-			layout.DrawArrayRemove(ref layers, ref guiSelected, layout.Inset(0.15f));
-			layout.DrawArrayUp(ref layers, ref guiSelected, layout.Inset(0.15f));
-			layout.DrawArrayDown(ref layers, ref guiSelected, layout.Inset(0.15f));
+			layout.DrawArrayAdd(ref layers, ref guiSelected, layout.Inset(0.15f), reverse:true, createElement:() => new Layer());
+			layout.DrawArrayRemove(ref layers, ref guiSelected, layout.Inset(0.15f), reverse:true, onBeforeRemove:UnlinkLayer);
+			layout.DrawArrayDown(ref layers, ref guiSelected, layout.Inset(0.15f), dispUp:true);
+			layout.DrawArrayUp(ref layers, ref guiSelected, layout.Inset(0.15f), dispDown:true);
 
 			layout.margin = 10;
 			layout.Par(5);
-			layout.DrawLayered(layers, ref guiSelected, min:0, max:layers.Length, reverseOrder:true, onLayerGUI:OnLayerGUI);
+			for (int num=layers.Length-1; num>=0; num--)
+				layout.DrawLayer(OnLayerGUI, ref guiSelected, num);
 		}
 	}
 
@@ -1615,6 +1622,302 @@ namespace MapMagic
 			layout.Field(ref detail, "Detail", min:0,max:0.8f);
 			layout.Field(ref turbulence, "Turbulence");
 			layout.Field(ref offset, "Offset");
+		}
+	}
+
+	[System.Serializable]
+	[GeneratorMenu (menu="Legacy", name ="Scatter (Legacy 1.8.3)", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Scatter")]
+	public class ScatterGenerator1 : Generator
+	{
+		public Input probability = new Input(InoutType.Map);
+		public Output output = new Output(InoutType.Objects);
+		public override IEnumerable<Input> Inputs() { yield return probability; }
+		public override IEnumerable<Output> Outputs() { yield return output; }
+
+		public int seed = 12345;
+		public enum Algorithm { Random, SquareCells, HexCells };
+		public Algorithm algorithm = Algorithm.Random;
+		public float density = 10;
+		public float uniformity = 0.1f;
+		public float relax = 0.1f;
+		public int safeBorders = 2;
+
+		public override void Generate (CoordRect rect, Chunk.Results results, Chunk.Size terrainSize, int seed, Func<float,bool> stop = null)
+		{
+			Matrix probMatrix = (Matrix)probability.GetObject(results);
+			if (!enabled || (stop!=null && stop(0))) return;
+			SpatialHash spatialHash = new SpatialHash(new Vector2(rect.offset.x,rect.offset.z), rect.size.x, 16);
+			
+			//initializing random
+			InstanceRandom rnd = new InstanceRandom(seed + this.seed + terrainSize.Seed(rect));
+
+			float square = rect.size.x * rect.size.z;
+			int count = (int)(square*(density/1000000)); //number of items per terrain
+			
+			if (algorithm==Algorithm.Random) RandomScatter(count, spatialHash, rnd, probMatrix, stop:stop);  
+			else CellScatter(count, spatialHash, rnd, probMatrix, hex:algorithm==Algorithm.HexCells, stop:stop);
+
+			if (stop!=null && stop(0)) return;
+			output.SetObject(results, spatialHash);
+		}
+
+		public void RandomScatter (int count, SpatialHash spatialHash, InstanceRandom rnd, Matrix probMatrix, Func<float,bool> stop = null)
+		{
+			int candidatesNum = (int)(uniformity*100);
+			if (candidatesNum < 1) candidatesNum = 1;
+			
+			for (int i=0; i<count; i++)
+			{
+				if (stop!=null && stop(0)) return;
+
+				Vector2 bestCandidate = Vector3.zero;
+				float bestDist = 0;
+				
+				for (int c=0; c<candidatesNum; c++)
+				{
+					Vector2 candidate = new Vector2((spatialHash.offset.x+1) + (rnd.Random()*(spatialHash.size-2.01f)), (spatialHash.offset.y+1) + (rnd.Random()*(spatialHash.size-2.01f)));
+				
+					//checking if candidate available here according to probability map
+					//if (probMatrix!=null && probMatrix[candidate] < rnd.Random()+0.0001f) continue;
+
+					//checking if candidate is the furthest one
+					float dist = spatialHash.MinDist(candidate);
+
+					//distance to the edge
+					float bd = (candidate.x-spatialHash.offset.x)*2; if (bd < dist) dist = bd;
+					bd = (candidate.y-spatialHash.offset.y)*2; if (bd < dist) dist = bd;
+					bd = (spatialHash.offset.x+spatialHash.size-candidate.x)*2; if (bd < dist) dist = bd;
+					bd = (spatialHash.offset.y+spatialHash.size-candidate.y)*2; if (bd < dist) dist = bd;
+
+					if (dist>bestDist) { bestDist=dist; bestCandidate = candidate; }
+				}
+
+				if (bestDist>0.001f) 
+				{
+					spatialHash.Add(bestCandidate, 0, 0, 1); //adding only if some suitable candidate found
+				}
+			}
+
+			//masking
+			for (int c=0; c<spatialHash.cells.Length; c++)
+			{
+				SpatialHash.Cell cell = spatialHash.cells[c];
+				for (int i=cell.objs.Count-1; i>=0; i--)
+				{
+					if (stop!=null && stop(0)) return;
+
+					Vector2 pos = cell.objs[i].pos;
+				
+					if (pos.x < spatialHash.offset.x+safeBorders || 
+						pos.y < spatialHash.offset.y+safeBorders ||
+						pos.x > spatialHash.offset.x+spatialHash.size-safeBorders ||
+						pos.y > spatialHash.offset.y+spatialHash.size-safeBorders ) { cell.objs.RemoveAt(i); continue; }
+
+					if (probMatrix!=null && probMatrix[pos] < rnd.Random()+0.0001f) { cell.objs.RemoveAt(i); continue; }
+				}
+			}
+		}
+
+		public void CellScatter (int count, SpatialHash spatialHash, InstanceRandom rnd, Matrix probMatrix, bool hex=true, Func<float,bool> stop = null)
+		{
+			//finding scatter rect
+			CoordRect rect = new CoordRect(spatialHash.offset.x+1, spatialHash.offset.y+1, spatialHash.size-2, spatialHash.size-2);
+			rect.Contract(safeBorders);
+
+			//positioned scatter
+			float sideCount = Mathf.Sqrt(count);
+			//float step = 1f * rect.size.x / sideCount;
+
+			//scattering in hexagonal order
+			float heightFactor = 1; if (hex) heightFactor = 0.8660254f;
+			Matrix2<Vector2> positions = new Matrix2<Vector2>( new CoordRect(0,0,sideCount,(int)(sideCount/heightFactor)) );
+			Vector2 cellSize = new Vector2(spatialHash.size/positions.rect.size.x, spatialHash.size/positions.rect.size.z);
+
+			Coord min = positions.rect.Min; Coord max = positions.rect.Max;
+			for (int x=min.x; x<max.x; x++)
+				for (int z=min.z; z<max.z; z++)
+			{
+				if (stop!=null && stop(0)) return;
+				
+				Vector2 position = new Vector2(x*cellSize.x + spatialHash.offset.x,  z*cellSize.y + spatialHash.offset.y);
+				position.x += cellSize.x/2; position.y += cellSize.y/2;
+				if (hex && z%2!=0) position.x += cellSize.x/2;
+				
+				//random
+				position += new Vector2( rnd.CoordinateRandom(x,z*2000)-0.5f, rnd.CoordinateRandom(x*3000,z)-0.5f ) * cellSize.x * (1-uniformity); 
+
+				positions[x,z] = position;
+			}
+
+			//relaxing
+			Matrix2<Vector2> newPositions = new Matrix2<Vector2>(positions.rect);
+			Vector2[] closestPositions = new Vector2[8];
+
+			for (int x=min.x; x<max.x; x++)
+				for (int z=min.z; z<max.z; z++)
+			{
+				if (stop!=null && stop(0)) return;
+
+				if (x==min.x || x==max.x-1 || z==min.z || z==max.z-1) { newPositions[x,z] = positions[x,z]; continue; }
+
+				Vector2 position = positions[x,z];
+				Vector2 relaxDir = new Vector2();
+
+				//getting closest positions
+				closestPositions[0] = positions[x-1,z+1]; closestPositions[1] = positions[x,z+1]; closestPositions[2] = positions[x+1,z+1];
+				closestPositions[3] = positions[x-1,z];											  closestPositions[4] = positions[x+1,z];
+				closestPositions[5] = positions[x-1,z-1]; closestPositions[6] = positions[x,z-1]; closestPositions[7] = positions[x+1,z-1];
+
+				//relaxing
+				for (int i=0; i<8; i++)
+				{
+					Vector2 deltaVec = (position-closestPositions[i]) / cellSize.x; //in cells
+					float deltaDist = deltaVec.magnitude;
+					if (deltaDist > 1) deltaDist = 1;
+
+					float relaxFactor = (1-deltaDist)*(1-deltaDist); //1 / deltaVec.magnitude;
+
+					relaxDir += deltaVec.normalized * relaxFactor;
+				}
+
+				//float relaxDirMagnitude = relaxDir.magnitude;
+				//relaxDir /= relaxDirMagnitude;
+				//relaxDirMagnitude = Mathf.Sqrt(relaxDirMagnitude);
+
+				newPositions[x,z] = position + relaxDir*relax*(cellSize.x/2);
+			}
+
+			//masking and converting to spatial hash
+			for (int x=min.x; x<max.x; x++)
+				for (int z=min.z; z<max.z; z++)
+			{
+				if (stop!=null && stop(0)) return;
+				
+				Vector2 pos = newPositions[x,z];
+
+				if (pos.x < spatialHash.offset.x+safeBorders+0.001f || 
+					pos.y < spatialHash.offset.y+safeBorders+0.001f ||
+					pos.x > spatialHash.offset.x+spatialHash.size-safeBorders-0.001f ||
+					pos.y > spatialHash.offset.y+spatialHash.size-safeBorders-0.001f ) continue;
+
+				if (probMatrix!=null && probMatrix[(int)pos.x, (int)pos.y] < rnd.CoordinateRandom(x,z*1000)+0.0001f) continue;
+
+				spatialHash.Add(pos, 0,0,1);
+			}
+		}
+
+
+		public override void OnGUI (GeneratorsAsset gens)
+		{
+			//inouts
+			layout.Par(20); probability.DrawIcon(layout, "Probability"); output.DrawIcon(layout, "Output");
+			layout.Par(5);
+
+			//params
+			layout.Field(ref algorithm, "Algorithm");
+			layout.Field(ref seed, "Seed");
+			layout.Field(ref density, "Density");
+			layout.Field(ref uniformity, "Uniformity", min:0, max:1);
+			layout.Field(ref relax, "Relax", min:0, max:1);
+			layout.Field(ref safeBorders, "Safe Borders", min:0);
+		}
+	}
+
+	[System.Serializable]
+	[GeneratorMenu (menu="Legacy", name ="Stamp (Legacy 1.8.3)", disengageable = true, helpLink = "https://gitlab.com/denispahunov/mapmagic/wikis/object_generators/Stamp")]
+	public class StampGenerator1 : Generator
+	{
+		public Input stampIn = new Input(InoutType.Map);
+		public Input canvasIn = new Input(InoutType.Map);
+		public Input positionsIn = new Input(InoutType.Objects);
+		public Input maskIn = new Input(InoutType.Map);
+		public override IEnumerable<Input> Inputs() {  yield return positionsIn; yield return canvasIn; yield return stampIn; yield return maskIn; }
+
+		public Output output = new Output(InoutType.Map);
+		public override IEnumerable<Output> Outputs() { yield return output; }
+
+		public BlendGenerator.Algorithm guiAlgorithm = BlendGenerator.Algorithm.max;
+		public float radius = 1;
+		public float sizeFactor = 1;
+		public int safeBorders = 0;
+
+		public override void Generate (CoordRect rect, Chunk.Results results, Chunk.Size terrainSize, int seed, Func<float,bool> stop = null)
+		{
+			//getting inputs
+			Matrix stamp = (Matrix)stampIn.GetObject(results);
+			Matrix src = (Matrix)canvasIn.GetObject(results);
+			SpatialHash objs = (SpatialHash)positionsIn.GetObject(results);
+			
+			//return on stop/disable/null input
+			if (stop!=null && stop(0)) return; 
+			if (!enabled || stamp==null || objs==null) { output.SetObject(results,src); return; }
+
+			//preparing output
+			Matrix dst = null;
+			if (src==null) dst = new Matrix(rect); 
+			else dst = src.Copy(null);
+
+			//algorithm
+			System.Func<float,float,float> algorithm = BlendGenerator.GetAlgorithm(guiAlgorithm);
+
+			foreach (SpatialObject obj in objs.AllObjs())
+			{
+				//finding current radius
+				float curRadius = radius*(1-sizeFactor) + radius*obj.size*sizeFactor;
+				curRadius = curRadius * terrainSize.pixelSize; //transforming to map-space
+
+				//stamp coordinates
+				//float scale = curRadius*2 / stamp.rect.size.x;
+				Vector2 stampMin = obj.pos - new Vector2(curRadius, curRadius);
+				Vector2 stampMax = obj.pos + new Vector2(curRadius, curRadius);
+				Vector2 stampSize = new Vector2(curRadius*2, curRadius*2);
+
+				//calculating rects 
+				CoordRect stampRect = new CoordRect(stampMin.x, stampMin.y, stampSize.x, stampSize.y);
+				CoordRect intersection = CoordRect.Intersect(stampRect, dst.rect);
+				Coord min = intersection.Min; Coord max = intersection.Max; 
+
+				for (int x=min.x; x<max.x; x++)
+					for (int z=min.z; z<max.z; z++)
+				{
+					//float dist = Mathf.Sqrt((x-obj.pos.x+0.5f)*(x-obj.pos.x+0.5f) + (z-obj.pos.y+0.5f)*(z-obj.pos.y+0.5f));
+					//float percent = 1f - dist / curRadius; 
+					//if (percent < 0 || dist > curRadius) percent = 0;
+
+					Vector2 relativePos = new Vector2(1f*(x-stampMin.x)/(stampMax.x-stampMin.x), 1f*(z-stampMin.y)/(stampMax.y-stampMin.y));
+					float val = stamp.GetInterpolated(relativePos.x*stamp.rect.size.x + stamp.rect.offset.x, relativePos.y*stamp.rect.size.z + stamp.rect.offset.z, Matrix.WrapMode.Clamp);
+					//float val = stamp.CheckGet((int)(relativePos.x*stamp.rect.size.x + stamp.rect.offset.x), (int)(relativePos.y*stamp.rect.size.z + stamp.rect.offset.z)); //TODO use bilenear filtering
+
+					//matrix[x,z] = matrix[x,z]+val*scale;
+					//matrix[x,z] = Mathf.Max(matrix[x,z],val*scale);
+					dst[x,z] = algorithm(dst[x,z],val);
+				}
+			}
+
+			Matrix mask = (Matrix)maskIn.GetObject(results);
+			if (mask != null) Matrix.Mask(src, dst, mask);
+			if (safeBorders != 0) Matrix.SafeBorders(src, dst, safeBorders);
+
+			//setting output
+			if (stop!=null && stop(0)) return;
+			output.SetObject(results, dst);
+		}
+
+		public override void OnGUI (GeneratorsAsset gens)
+		{
+			//inouts
+			layout.Par(20); positionsIn.DrawIcon(layout, "Positions", mandatory:true); output.DrawIcon(layout, "Output");
+			layout.Par(20); canvasIn.DrawIcon(layout, "Canvas");
+			layout.Par(20); stampIn.DrawIcon(layout, "Stamp", mandatory:true);
+			layout.Par(20); maskIn.DrawIcon(layout, "Mask");
+			layout.Par(5);
+
+			//params
+			layout.Par(5); layout.fieldSize = 0.5f;
+			layout.Field(ref guiAlgorithm, "Algorithm");
+			layout.Field(ref radius, "Radius");
+			layout.Field(ref sizeFactor, "Size Factor");
+			layout.Field(ref safeBorders, "Safe Borders");
 		}
 	}
 }

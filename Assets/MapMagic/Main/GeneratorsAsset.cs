@@ -685,7 +685,7 @@ namespace MapMagic
 						mapMagic = Voxeland5.Voxeland.instances.Any();
 					#endif
 
-					System.Type genType = gen.GetType();
+					//System.Type genType = gen.GetType();
 					bool hasGenType = false; //is there generator of the same type in graph (and biomes)?
 
 					//if there are any other outputs of the same type - clearing them and forcing generate
@@ -805,6 +805,7 @@ namespace MapMagic
 				}
 			}
 
+
 		#endregion
 
 		/*public GeneratorsAsset Clone ()
@@ -834,7 +835,7 @@ namespace MapMagic
 //				{ Debug.LogError("MapMagic: Trying to add Output Generator while it already present in generators list"); return null; }
 					
 			//adding to list
-			ArrayTools.Add(ref list, gen);
+			ArrayTools.Add(ref list, createElement:() => gen);
 
 			return gen;
 		}
@@ -1011,7 +1012,7 @@ namespace MapMagic
 
 			#if VOXELAND
 			VoxelandOutput voxelandOut = (VoxelandOutput)gens.CreateGenerator(typeof(VoxelandOutput), new Vector2(450,50));
-			ArrayTools.Add(ref voxelandOut.layers, null); voxelandOut.OnAddLayer(0,null);
+			ArrayTools.Add(ref voxelandOut.layers, createElement:() => new VoxelandOutput.Layer()); //voxelandOut.OnAddLayer(0,null);
 			
 
 			curveGen.input.Link(noiseGen.output, noiseGen);

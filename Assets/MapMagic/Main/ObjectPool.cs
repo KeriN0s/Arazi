@@ -49,7 +49,7 @@ namespace MapMagic
 			return result;
 		}}
 
-		private Instance Instantiate (Transform prefab, Transition draft, Transform parent=null, Vector3 prefabScale=new Vector3(), Quaternion prefabRotation = new Quaternion())
+		public Instance Instantiate (Transform prefab, Transition draft, Transform parent=null, Vector3 prefabScale=new Vector3(), Quaternion prefabRotation = new Quaternion())
 		{
 			if (prefab == null) return new Instance() { transform=null, x=draft.pos.x, z=draft.pos.z };
 			
